@@ -1,0 +1,3464 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<title>Terra Minima</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700&family=Karla:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --ink:        #090d13;
+  --ink-2:      #0f151e;
+  --plate:      rgba(15, 21, 30, 0.86);
+  --plate-solid:#101722;
+  --rule:       rgba(226, 214, 190, 0.13);
+  --rule-strong:rgba(226, 214, 190, 0.26);
+  --parchment:  #ece2ce;
+  --muted:      #8d8a7e;
+  --muted-cool: #7c8695;
+  --brass:      #d7a13c;
+  --brass-dim:  #8a6a2c;
+  --verdigris:  #4fb9a1;
+  --ember:      #d9584a;
+  --violet:     #8f7fdd;
+  --sky:        #6fa8d6;
+
+  --font-display: 'Fraunces', 'Iowan Old Style', Georgia, serif;
+  --font-ui: 'Karla', ui-sans-serif, system-ui, 'Segoe UI', sans-serif;
+  --font-data: 'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+
+  --dock-h: 62px;
+}
+
+*{ box-sizing: border-box; }
+html, body{ height: 100%; }
+body{
+  margin: 0;
+  background: var(--ink);
+  color: var(--parchment);
+  font-family: var(--font-ui);
+  font-size: 14px;
+  overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+button{ font-family: inherit; color: inherit; }
+:focus-visible{ outline: 2px solid var(--brass); outline-offset: 2px; }
+
+#app{ position: fixed; inset: 0; }
+#stage{ position: absolute; inset: 0; }
+#stage canvas{ display: block; touch-action: none; }
+#stage.armed{ cursor: crosshair; }
+
+/* ---------- shared plate ---------- */
+.plate{
+  background: var(--plate);
+  border: 1px solid var(--rule);
+  border-radius: 12px;
+  backdrop-filter: blur(14px) saturate(1.2);
+  -webkit-backdrop-filter: blur(14px) saturate(1.2);
+  box-shadow: 0 10px 34px rgba(0,0,0,0.45);
+}
+.eyebrow{
+  font-family: var(--font-data);
+  font-size: 9.5px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.num{ font-family: var(--font-data); font-variant-numeric: tabular-nums; }
+
+/* ---------- top-left instrument plate ---------- */
+#hud{
+  position: absolute;
+  top: calc(14px + env(safe-area-inset-top, 0px));
+  left: 14px;
+  padding: 12px 14px 11px;
+  display: flex; flex-direction: column; gap: 10px;
+  min-width: 232px;
+  z-index: 5;
+}
+#hud .brand{ display: flex; align-items: baseline; gap: 8px; }
+#hud h1{
+  font-family: var(--font-display);
+  font-weight: 700; font-size: 20px; margin: 0;
+  letter-spacing: -0.01em; line-height: 1;
+}
+#hud .brand .epoch{
+  font-family: var(--font-data); font-size: 10px; letter-spacing: 0.1em;
+  text-transform: uppercase; color: var(--brass);
+}
+#readouts{
+  display: grid; grid-template-columns: repeat(4, minmax(0,1fr));
+  gap: 2px 10px;
+  border-top: 1px solid var(--rule); padding-top: 9px;
+}
+.readout{ display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.readout .v{ font-family: var(--font-data); font-size: 16px; font-weight: 500; line-height: 1.05; font-variant-numeric: tabular-nums; }
+.readout .k{ font-family: var(--font-data); font-size: 8.5px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); }
+.readout.warlike .v{ color: var(--ember); }
+
+#season-strip{
+  display: flex; align-items: center; gap: 8px;
+  border-top: 1px solid var(--rule); padding-top: 9px;
+}
+#season-orb{
+  width: 26px; height: 26px; border-radius: 50%; flex: none;
+  display: grid; place-items: center; font-size: 13px;
+  background: rgba(226,214,190,0.07); border: 1px solid var(--rule);
+}
+#season-text{ display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+#season-text .s{ font-size: 12px; font-weight: 500; }
+#season-text .t{ font-family: var(--font-data); font-size: 9.5px; color: var(--muted); letter-spacing: 0.06em; }
+
+#energy-wrap{ border-top: 1px solid var(--rule); padding-top: 9px; }
+#energy-row{ display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 5px; }
+#energy-row .val{ font-family: var(--font-data); font-size: 10px; color: var(--violet); font-variant-numeric: tabular-nums; }
+#energy-bar{ height: 5px; border-radius: 3px; background: rgba(143,127,221,0.16); overflow: hidden; }
+#energy-fill{ height: 100%; width: 0%; background: linear-gradient(90deg, #6d5fc0, var(--violet)); transition: width 0.25s linear; }
+
+/* ---------- dock ---------- */
+#dock{
+  position: absolute; left: 50%; transform: translateX(-50%);
+  bottom: calc(14px + env(safe-area-inset-bottom, 0px));
+  display: flex; align-items: center; gap: 4px;
+  padding: 6px; z-index: 20;
+  max-width: calc(100vw - 20px);
+}
+.dock-btn{
+  appearance: none; background: transparent; border: 1px solid transparent;
+  border-radius: 9px; cursor: pointer; position: relative;
+  width: 52px; height: 48px;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
+  transition: background 0.14s ease, border-color 0.14s ease, color 0.14s ease;
+}
+.dock-btn .ic{ font-size: 16px; line-height: 1; filter: saturate(0.9); }
+.dock-btn .lb{
+  font-family: var(--font-data); font-size: 8px; letter-spacing: 0.1em;
+  text-transform: uppercase; color: var(--muted);
+}
+.dock-btn:hover{ background: rgba(226,214,190,0.07); }
+.dock-btn.on{ background: rgba(215,161,60,0.16); border-color: rgba(215,161,60,0.45); }
+.dock-btn.on .lb{ color: var(--brass); }
+.dock-btn .badge{
+  position: absolute; top: 2px; right: 1px;
+  min-width: 15px; height: 15px; padding: 0 4px; border-radius: 8px;
+  background: var(--ember); color: #1a0705;
+  font-family: var(--font-data); font-size: 9px; font-weight: 600;
+  display: grid; place-items: center;
+}
+.dock-sep{ width: 1px; height: 30px; background: var(--rule); margin: 0 5px; flex: none; }
+
+#transport{ display: flex; align-items: center; gap: 4px; }
+#play-btn{
+  appearance: none; width: 40px; height: 40px; border-radius: 9px; cursor: pointer;
+  background: var(--brass); border: 1px solid var(--brass); color: #1d1405;
+  font-size: 14px; display: grid; place-items: center;
+}
+#play-btn:hover{ background: #eab857; }
+#play-btn.paused{ background: rgba(226,214,190,0.08); border-color: var(--rule-strong); color: var(--parchment); }
+#speed-group{ display: flex; gap: 2px; }
+.speed-btn{
+  appearance: none; background: transparent; border: 1px solid transparent; cursor: pointer;
+  border-radius: 7px; padding: 6px 7px;
+  font-family: var(--font-data); font-size: 10.5px; color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.speed-btn:hover{ background: rgba(226,214,190,0.07); color: var(--parchment); }
+.speed-btn.on{ background: rgba(226,214,190,0.12); color: var(--parchment); border-color: var(--rule-strong); }
+
+/* ---------- drawer ---------- */
+#drawer{
+  position: absolute; left: 50%;
+  bottom: calc(var(--dock-h) + 22px + env(safe-area-inset-bottom, 0px));
+  width: min(980px, calc(100vw - 24px));
+  max-height: min(56vh, 520px);
+  transform: translate(-50%, 18px);
+  opacity: 0; pointer-events: none;
+  display: flex; flex-direction: column;
+  z-index: 15;
+  transition: opacity 0.18s ease, transform 0.18s cubic-bezier(.2,.9,.3,1);
+}
+#drawer.open{ opacity: 1; transform: translate(-50%, 0); pointer-events: auto; }
+#drawer{ background: rgba(11, 16, 24, 0.95); }
+#drawer-head{
+  display: flex; align-items: center; gap: 10px;
+  padding: 12px 14px; border-bottom: 1px solid var(--rule); flex: none;
+}
+#drawer-head h2{
+  font-family: var(--font-display); font-weight: 700; font-size: 16px; margin: 0; flex: 1;
+  letter-spacing: -0.01em;
+}
+#drawer-head .sub{ font-family: var(--font-data); font-size: 10px; color: var(--muted); letter-spacing: 0.06em; }
+.icon-btn{
+  appearance: none; background: transparent; border: 1px solid var(--rule); cursor: pointer;
+  width: 26px; height: 26px; border-radius: 7px; display: grid; place-items: center;
+  color: var(--muted); font-size: 14px; line-height: 1;
+}
+.icon-btn:hover{ color: var(--parchment); background: rgba(226,214,190,0.07); }
+#drawer-body{ overflow-y: auto; padding: 14px; }
+
+/* ---------- panel internals ---------- */
+.nation-grid{ display: grid; grid-template-columns: repeat(auto-fill, minmax(232px, 1fr)); gap: 10px; }
+.nation-card{
+  border: 1px solid var(--rule); border-radius: 10px; padding: 11px 12px;
+  background: rgba(226,214,190,0.025); cursor: pointer;
+  display: flex; flex-direction: column; gap: 8px;
+  transition: border-color 0.14s ease, background 0.14s ease;
+}
+.nation-card:hover{ border-color: var(--rule-strong); background: rgba(226,214,190,0.055); }
+.nc-top{ display: flex; align-items: center; gap: 8px; }
+.swatch{ width: 9px; height: 26px; border-radius: 3px; flex: none; }
+.nc-name{ flex: 1; min-width: 0; }
+.nc-name .n{ font-family: var(--font-display); font-weight: 700; font-size: 14.5px; line-height: 1.15; display: block;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nc-name .t{ font-family: var(--font-data); font-size: 9px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+.nc-stats{ display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.nc-stats .cell .v{ font-family: var(--font-data); font-size: 13px; font-variant-numeric: tabular-nums; }
+.nc-stats .cell .k{ font-family: var(--font-data); font-size: 8px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }
+.meter{ height: 4px; border-radius: 2px; background: rgba(226,214,190,0.1); overflow: hidden; }
+.meter i{ display: block; height: 100%; }
+.chips{ display: flex; flex-wrap: wrap; gap: 4px; }
+.chip{
+  font-family: var(--font-data); font-size: 9px; letter-spacing: 0.06em;
+  padding: 2px 6px; border-radius: 5px; border: 1px solid var(--rule);
+  color: var(--muted); display: inline-flex; align-items: center; gap: 4px;
+}
+.chip.war{ color: var(--ember); border-color: rgba(217,88,74,0.4); background: rgba(217,88,74,0.1); }
+.chip.ally{ color: var(--verdigris); border-color: rgba(79,185,161,0.4); background: rgba(79,185,161,0.1); }
+.chip.trade{ color: var(--brass); border-color: rgba(215,161,60,0.4); background: rgba(215,161,60,0.1); }
+
+.filter-row{ display: flex; gap: 5px; flex-wrap: wrap; margin-bottom: 12px; }
+.filter-btn{
+  appearance: none; background: transparent; border: 1px solid var(--rule); cursor: pointer;
+  border-radius: 7px; padding: 4px 9px;
+  font-family: var(--font-data); font-size: 10px; letter-spacing: 0.06em; color: var(--muted);
+}
+.filter-btn:hover{ color: var(--parchment); }
+.filter-btn.on{ color: var(--parchment); border-color: var(--rule-strong); background: rgba(226,214,190,0.09); }
+
+#chronicle-list{ display: flex; flex-direction: column; gap: 1px; }
+.chron{
+  display: grid; grid-template-columns: 30px 52px 1fr; align-items: baseline; gap: 10px;
+  padding: 7px 8px; border-radius: 7px; line-height: 1.45; font-size: 13px;
+}
+.chron:nth-child(odd){ background: rgba(226,214,190,0.028); }
+.chron .ic{ font-size: 14px; line-height: 1.2; text-align: center; }
+.chron .d{ font-family: var(--font-data); font-size: 10px; color: var(--muted); letter-spacing: 0.04em; }
+.chron b{ font-weight: 700; }
+.chron.war b{ color: var(--ember); }
+.chron.peace b, .chron.found b{ color: var(--verdigris); }
+.chron.boon b{ color: var(--brass); }
+.chron.disaster b{ color: var(--ember); }
+.chron.tech b{ color: var(--violet); }
+.chron.divine b{ color: var(--violet); }
+.chron .txt{ color: #cfc7b6; }
+
+.map-wrap{ display: grid; grid-template-columns: 300px 1fr; gap: 16px; align-items: start; }
+#minimap{ width: 100%; border-radius: 8px; display: block; border: 1px solid var(--rule); background: #06090e; }
+.terrain-key{ display: flex; flex-direction: column; gap: 7px; }
+.key-row{ display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: #cfc7b6; }
+.key-dot{ width: 11px; height: 11px; border-radius: 3px; flex: none; border: 1px solid rgba(0,0,0,0.35); }
+
+.chart-block{ margin-bottom: 18px; }
+.chart-head{ display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 8px; }
+.chart-head h3{ font-family: var(--font-display); font-weight: 700; font-size: 13.5px; margin: 0; }
+.chart-canvas{ width: 100%; display: block; }
+.chart-legend{ display: flex; flex-wrap: wrap; gap: 10px 16px; margin-top: 8px; }
+.chart-legend .li{ display: flex; align-items: center; gap: 6px; font-size: 12px; color: #cfc7b6; }
+.chart-legend .li i{ width: 14px; height: 2.5px; border-radius: 2px; display: block; }
+
+.power-grid{ display: grid; grid-template-columns: repeat(auto-fill, minmax(196px, 1fr)); gap: 9px; }
+.power{
+  appearance: none; text-align: left; cursor: pointer;
+  border: 1px solid var(--rule); border-radius: 10px; padding: 10px 11px;
+  background: rgba(143,127,221,0.04);
+  display: grid; grid-template-columns: 30px 1fr; gap: 10px; align-items: start;
+  transition: border-color 0.14s ease, background 0.14s ease, opacity 0.14s ease;
+}
+.power:hover{ border-color: rgba(143,127,221,0.5); background: rgba(143,127,221,0.1); }
+.power.on{ border-color: var(--violet); background: rgba(143,127,221,0.18); }
+.power:disabled{ opacity: 0.38; cursor: not-allowed; }
+.power .pi{ font-size: 19px; line-height: 1; padding-top: 1px; }
+.power .pn{ font-family: var(--font-display); font-weight: 700; font-size: 13.5px; display: block; }
+.power .pd{ font-size: 11.5px; color: var(--muted); line-height: 1.35; display: block; margin-top: 2px; }
+.power .pc{ font-family: var(--font-data); font-size: 9.5px; color: var(--violet); letter-spacing: 0.08em; display: block; margin-top: 5px; }
+
+.opt-row{
+  display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  padding: 9px 2px; border-bottom: 1px solid var(--rule);
+}
+.opt-row:last-child{ border-bottom: 0; }
+.opt-row .lbl .t{ font-size: 13px; display: block; }
+.opt-row .lbl .d{ font-size: 11.5px; color: var(--muted); display: block; margin-top: 1px; }
+.toggle{
+  appearance: none; cursor: pointer; flex: none;
+  width: 40px; height: 22px; border-radius: 11px;
+  border: 1px solid var(--rule-strong); background: rgba(226,214,190,0.07);
+  position: relative; transition: background 0.16s ease, border-color 0.16s ease;
+}
+.toggle::after{
+  content: ''; position: absolute; top: 2px; left: 2px;
+  width: 16px; height: 16px; border-radius: 50%; background: var(--muted);
+  transition: transform 0.16s cubic-bezier(.2,.9,.3,1), background 0.16s ease;
+}
+.toggle.on{ background: rgba(215,161,60,0.3); border-color: var(--brass); }
+.toggle.on::after{ transform: translateX(18px); background: var(--brass); }
+
+.help-cols{ display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 18px; }
+.help-cols h3{ font-family: var(--font-display); font-size: 13px; font-weight: 700; margin: 0 0 8px; }
+.help-cols dl{ margin: 0; display: grid; grid-template-columns: auto 1fr; gap: 6px 10px; align-items: baseline; }
+.help-cols dt{ font-family: var(--font-data); font-size: 10px; color: var(--brass); letter-spacing: 0.04em; white-space: nowrap; }
+.help-cols dd{ margin: 0; font-size: 12.5px; color: #cfc7b6; line-height: 1.4; }
+.era-track{ display: flex; flex-direction: column; gap: 6px; }
+.era-step{ display: grid; grid-template-columns: 22px 1fr auto; gap: 9px; align-items: baseline; font-size: 12.5px; }
+.era-step .n{ font-family: var(--font-data); font-size: 10px; color: var(--muted); }
+.era-step .r{ font-family: var(--font-data); font-size: 10px; color: var(--muted); }
+
+/* ---------- inspector ---------- */
+#inspector{
+  position: absolute; top: calc(14px + env(safe-area-inset-top, 0px)); right: 14px;
+  width: 268px; padding: 13px 14px; z-index: 10;
+  display: none; flex-direction: column; gap: 10px;
+  max-height: calc(100% - 120px); overflow-y: auto;
+}
+#inspector.show{ display: flex; }
+#insp-head{ display: flex; align-items: flex-start; gap: 9px; }
+#insp-head .swatch{ height: 32px; }
+#insp-title{ font-family: var(--font-display); font-weight: 700; font-size: 16.5px; margin: 0; line-height: 1.15; flex: 1; }
+#insp-sub{ font-family: var(--font-data); font-size: 9.5px; letter-spacing: 0.09em; text-transform: uppercase; color: var(--muted); display: block; margin-top: 2px; }
+.insp-rows{ display: flex; flex-direction: column; gap: 0; }
+.irow{ display: flex; justify-content: space-between; gap: 12px; padding: 5px 0; border-bottom: 1px solid var(--rule); font-size: 12.5px; }
+.irow:last-child{ border-bottom: 0; }
+.irow .k{ color: var(--muted); flex: none; }
+.irow .v{ text-align: right; font-family: var(--font-data); font-size: 12px; font-variant-numeric: tabular-nums; word-break: break-word; }
+.stock-grid{ display: grid; grid-template-columns: repeat(5, 1fr); gap: 5px; }
+.stock{ text-align: center; border: 1px solid var(--rule); border-radius: 7px; padding: 5px 2px; }
+.stock .i{ font-size: 12px; line-height: 1.2; }
+.stock .v{ font-family: var(--font-data); font-size: 11px; font-variant-numeric: tabular-nums; display: block; margin-top: 1px; }
+#insp-note{ font-size: 11.5px; color: var(--muted); line-height: 1.4; font-style: italic; }
+#insp-focus{
+  appearance: none; cursor: pointer; width: 100%;
+  border: 1px solid var(--rule-strong); background: rgba(226,214,190,0.06);
+  border-radius: 8px; padding: 7px; font-size: 12px;
+}
+#insp-focus:hover{ background: rgba(226,214,190,0.12); }
+
+/* ---------- event toasts ---------- */
+#toasts{
+  position: absolute; top: calc(16px + env(safe-area-inset-top, 0px)); left: 50%; transform: translateX(-50%);
+  display: flex; flex-direction: column; gap: 8px; align-items: center;
+  z-index: 30; pointer-events: none; width: min(430px, calc(100vw - 40px));
+}
+.toast{
+  width: 100%;
+  display: grid; grid-template-columns: 38px 1fr; gap: 11px; align-items: center;
+  padding: 10px 13px 10px 11px;
+  border-left: 3px solid var(--brass);
+  animation: toast-in 0.34s cubic-bezier(.16,1.1,.3,1) both;
+}
+.toast.leaving{ animation: toast-out 0.3s ease forwards; }
+@keyframes toast-in{
+  from{ opacity: 0; transform: translateY(-14px) scale(0.96); }
+  to{ opacity: 1; transform: none; }
+}
+@keyframes toast-out{
+  to{ opacity: 0; transform: translateY(-10px) scale(0.97); }
+}
+.toast .ic{
+  width: 38px; height: 38px; border-radius: 10px; display: grid; place-items: center;
+  font-size: 19px; background: rgba(226,214,190,0.07);
+  animation: ic-pop 0.5s cubic-bezier(.2,1.5,.4,1) both;
+}
+@keyframes ic-pop{ from{ transform: scale(0.4) rotate(-14deg); } to{ transform: none; } }
+.toast .tt{ font-family: var(--font-display); font-weight: 700; font-size: 13.5px; line-height: 1.2; }
+.toast .td{ font-size: 12px; color: #c6bdab; line-height: 1.35; margin-top: 2px; }
+.toast .td b{ color: var(--parchment); font-weight: 700; }
+
+#flash{
+  position: absolute; inset: 0; pointer-events: none; z-index: 25; opacity: 0;
+  box-shadow: inset 0 0 160px 30px currentColor;
+  color: var(--ember);
+}
+#flash.go{ animation: flash-k 0.75s ease-out; }
+@keyframes flash-k{ 0%{ opacity: 0; } 14%{ opacity: 0.85; } 100%{ opacity: 0; } }
+
+/* ---------- armed banner ---------- */
+#armed{
+  position: absolute; left: 50%; transform: translateX(-50%);
+  bottom: calc(var(--dock-h) + 24px + env(safe-area-inset-bottom, 0px));
+  display: none; align-items: center; gap: 10px;
+  padding: 9px 14px; z-index: 18;
+  border-color: rgba(143,127,221,0.5);
+  background: rgba(24, 20, 42, 0.9);
+}
+#armed.show{ display: flex; }
+#armed .ic{ font-size: 17px; }
+#armed .tx{ font-size: 12.5px; }
+#armed .tx b{ font-family: var(--font-display); }
+#armed .esc{ font-family: var(--font-data); font-size: 9.5px; color: var(--muted); letter-spacing: 0.08em; }
+
+#hint{
+  position: absolute; left: 50%; transform: translateX(-50%);
+  bottom: calc(var(--dock-h) + 24px + env(safe-area-inset-bottom, 0px));
+  font-family: var(--font-data); font-size: 10px; letter-spacing: 0.1em;
+  text-transform: uppercase; color: var(--muted);
+  pointer-events: none; z-index: 8; white-space: nowrap;
+  transition: opacity 0.4s ease;
+}
+
+.empty{ color: var(--muted); font-size: 12.5px; font-style: italic; padding: 8px 2px; }
+
+::-webkit-scrollbar{ width: 7px; height: 7px; }
+::-webkit-scrollbar-thumb{ background: rgba(226,214,190,0.16); border-radius: 4px; }
+::-webkit-scrollbar-track{ background: transparent; }
+
+@media (prefers-reduced-motion: reduce){
+  *{ animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+}
+
+@media (max-width: 860px){
+  .map-wrap{ grid-template-columns: 1fr; }
+  #inspector{ width: 220px; }
+}
+@media (max-width: 640px){
+  #hud{ min-width: 0; padding: 9px 11px; gap: 7px; }
+  #hud h1{ font-size: 16px; }
+  #readouts{ grid-template-columns: repeat(4, minmax(0,1fr)); gap: 2px 8px; }
+  .readout .v{ font-size: 13px; }
+  #season-strip, #energy-wrap{ display: none; }
+  #inspector{ top: auto; bottom: calc(var(--dock-h) + 24px); right: 12px; left: 12px; width: auto; max-height: 40vh; }
+  #hint{ display: none; }
+  .dock-btn{ width: 44px; height: 44px; }
+  .dock-btn .lb{ display: none; }
+  #dock{ gap: 2px; padding: 5px; overflow-x: auto; }
+  #drawer{ max-height: 52vh; }
+  .chron{ grid-template-columns: 22px 1fr; }
+  .chron .d{ display: none; }
+}
+</style>
+</head>
+<body>
+
+
+<div id="app">
+  <div id="stage"></div>
+  <div id="flash"></div>
+
+  <div id="hud" class="plate">
+    <div class="brand">
+      <h1>Terra Minima</h1>
+      <span class="epoch" id="hud-epoch">Stone Age</span>
+    </div>
+    <div id="readouts">
+      <div class="readout"><span class="v" id="r-day">0</span><span class="k">Day</span></div>
+      <div class="readout"><span class="v" id="r-nations">0</span><span class="k">States</span></div>
+      <div class="readout"><span class="v" id="r-pop">0</span><span class="k">Souls</span></div>
+      <div class="readout warlike"><span class="v" id="r-wars">0</span><span class="k">Wars</span></div>
+    </div>
+    <div id="season-strip">
+      <div id="season-orb">🌱</div>
+      <div id="season-text">
+        <span class="s" id="season-name">Spring</span>
+        <span class="t" id="season-detail">year 1 · dawn</span>
+      </div>
+    </div>
+    <div id="energy-wrap">
+      <div id="energy-row">
+        <span class="eyebrow">Divine favour</span>
+        <span class="val" id="energy-val">100 / 100</span>
+      </div>
+      <div id="energy-bar"><div id="energy-fill"></div></div>
+    </div>
+  </div>
+
+  <div id="inspector" class="plate">
+    <div id="insp-head">
+      <div class="swatch" id="insp-swatch" style="background:var(--muted)"></div>
+      <div style="flex:1;min-width:0">
+        <h3 id="insp-title">—</h3>
+        <span id="insp-sub">—</span>
+      </div>
+      <button class="icon-btn" id="insp-close" aria-label="Close inspector">×</button>
+    </div>
+    <div class="insp-rows" id="insp-rows"></div>
+    <div class="stock-grid" id="insp-stocks" style="display:none"></div>
+    <div id="insp-note"></div>
+    <button id="insp-focus" style="display:none">Centre the view here</button>
+  </div>
+
+  <div id="toasts"></div>
+
+  <div id="hint">drag to orbit · scroll to zoom · click the land to inspect it</div>
+
+  <div id="armed" class="plate">
+    <span class="ic" id="armed-ic">☄️</span>
+    <span class="tx" id="armed-tx"><b>Meteor</b> armed — click the world</span>
+    <span class="esc">ESC to cancel</span>
+  </div>
+
+  <div id="drawer" class="plate">
+    <div id="drawer-head">
+      <h2 id="drawer-title">Panel</h2>
+      <span class="sub" id="drawer-sub"></span>
+      <button class="icon-btn" id="drawer-close" aria-label="Close panel">×</button>
+    </div>
+    <div id="drawer-body"></div>
+  </div>
+
+  <div id="dock" class="plate">
+    <button class="dock-btn" data-panel="nations"><span class="ic">🏳️</span><span class="lb">States</span></button>
+    <button class="dock-btn" data-panel="chronicle"><span class="ic">📜</span><span class="lb">Annals</span></button>
+    <button class="dock-btn" data-panel="atlas"><span class="ic">🗺️</span><span class="lb">Atlas</span></button>
+    <button class="dock-btn" data-panel="ledger"><span class="ic">📈</span><span class="lb">Ledger</span></button>
+    <button class="dock-btn" data-panel="powers"><span class="ic">✨</span><span class="lb">Powers</span></button>
+    <button class="dock-btn" data-panel="settings"><span class="ic">⚙️</span><span class="lb">Rules</span></button>
+    <button class="dock-btn" data-panel="guide"><span class="ic">❔</span><span class="lb">Guide</span></button>
+    <span class="dock-sep"></span>
+    <div id="transport">
+      <button id="play-btn" aria-label="Pause or resume">⏸</button>
+      <div id="speed-group">
+        <button class="speed-btn" data-speed="0.25">¼×</button>
+        <button class="speed-btn" data-speed="0.5">½×</button>
+        <button class="speed-btn on" data-speed="1">1×</button>
+        <button class="speed-btn" data-speed="2">2×</button>
+        <button class="speed-btn" data-speed="4">4×</button>
+        <button class="speed-btn" data-speed="8">8×</button>
+      </div>
+    </div>
+    <span class="dock-sep"></span>
+    <button class="dock-btn" id="new-world"><span class="ic">🌍</span><span class="lb">New</span></button>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+(function(){
+"use strict";
+
+/* ==================================================================
+   TERRA MINIMA — a tiny world that governs itself
+   Part 1 of 3: world, terrain, atmosphere
+   ================================================================== */
+
+/* ============================ CONFIG ============================ */
+const GRID = 144;
+const TILE = 1;
+const HEIGHT_SCALE = 4.3;
+const WATER_LEVEL = 0.365;
+const MOUNTAIN_LEVEL = 0.705;
+const MAX_AGENTS = 2600;
+const MAX_ARMIES = 50;
+const MAX_BUILDINGS = 2400;
+const BASE_TICK_MS = 460;
+const FOUND_CHANCE = 0.011;
+const MIN_NATION_GAP = 5;
+const DAYS_PER_SEASON = 16;
+const DAY_LENGTH = 12;
+const MAX_FAVOUR = 100;
+
+const NAME_PREFIX = ["Nova","Grand","United","Free","New","Great","North","South","East","West","Sun","Star","Iron","Golden","Silver","Storm","High","Old","Red","Blue","Ashen","Cedar","Ember","Frost","Amber","Quiet","Salt","Lark","Moss","Thorn","Pale","Deep"];
+const NAME_SUFFIX = ["landia","burg","stan","ovia","garde","topia","mark","heim","land","koria","vale","shire","gard","onia","istan","field","port","haven","reach","crest","fell","moor","holm","watch","span","hollow"];
+
+const SEASONS = [
+  { name: 'Spring', icon: '🌱', growth: 1.25, tint: 0x67b04a, tintAmt: 0.10, note: 'sowing' },
+  { name: 'Summer', icon: '☀️', growth: 1.10, tint: 0xc9b455, tintAmt: 0.10, note: 'the long light' },
+  { name: 'Autumn', icon: '🍂', growth: 0.95, tint: 0xc07a33, tintAmt: 0.16, note: 'harvest' },
+  { name: 'Winter', icon: '❄️', growth: 0.62, tint: 0xdce6f0, tintAmt: 0.30, note: 'the lean months' }
+];
+
+const ERAS = [
+  { name: 'Stone Age',    icon: '🪨', science: 0,    growth: 1.00, power: 1.00 },
+  { name: 'Bronze Age',   icon: '🏺', science: 90,   growth: 1.08, power: 1.12 },
+  { name: 'Iron Age',     icon: '⚒️', science: 300,  growth: 1.14, power: 1.28 },
+  { name: 'Classical Age',icon: '🏛️', science: 760,  growth: 1.22, power: 1.42 },
+  { name: 'Industrial Age',icon:'⚙️', science: 1700, growth: 1.32, power: 1.64 }
+];
+
+const TRAITS = [
+  { id:'agrarian',   name:'Agrarian',   icon:'🌾', grow:1.35, build:1.00, aggression:0.80, alliance:1.10, power:0.95, weariness:1.20, food:1.35, sci:0.90,
+    desc:'Deep furrows and full granaries. Their numbers swell faster than anyone else\'s.' },
+  { id:'militarist', name:'Militarist', icon:'⚔️', grow:0.95, build:1.00, aggression:1.85, alliance:0.55, power:1.28, weariness:0.65, food:0.95, sci:0.90,
+    desc:'Quick to draw the sword, and heavier-handed once it is drawn.' },
+  { id:'mercantile', name:'Mercantile', icon:'⚖️', grow:1.00, build:0.72, aggression:0.75, alliance:2.00, power:0.95, weariness:1.15, food:1.00, sci:1.10,
+    desc:'Builds fast, trades faster, and would always rather sign than fight.' },
+  { id:'scholarly',  name:'Scholarly',  icon:'📜', grow:0.95, build:0.90, aggression:0.55, alliance:1.30, power:1.00, weariness:1.25, food:0.95, sci:1.90,
+    desc:'Advances through the ages while its neighbours are still arguing.' },
+  { id:'isolationist',name:'Isolationist',icon:'🛡️',grow:1.10, build:1.00, aggression:0.30, alliance:0.70, power:1.10, weariness:1.75, food:1.10, sci:1.00,
+    desc:'Rarely starts a war, defends fiercely, and sues for peace early.' },
+  { id:'nomadic',    name:'Nomadic',    icon:'🐎', grow:1.05, build:1.45, aggression:1.20, alliance:0.95, power:1.05, weariness:1.00, food:1.05, sci:0.85,
+    desc:'Spreads across the map quickly but puts down few permanent roots.' }
+];
+
+const BUILDINGS = {
+  hut:      { name:'Hut',          icon:'🛖', era:0, needs:null,       cost:{wood:6},                  yield:{},                     cap:2,  stability:0,    desc:'Shelter. Raises how many people the land can hold.' },
+  farm:     { name:'Farm',         icon:'🌾', era:0, needs:'farmland', cost:{wood:8},                  yield:{food:2.6},             cap:1,  stability:0.01, desc:'Worked fields. Feeds the population.' },
+  camp:     { name:'Lumber Camp',  icon:'🪵', era:0, needs:'forest',   cost:{wood:4},                  yield:{wood:2.2},             cap:0,  stability:0,    desc:'Cuts timber for everything else.' },
+  granary:  { name:'Granary',      icon:'🧺', era:0, needs:null,       cost:{wood:11},                 yield:{food:1.0},             cap:1,  stability:0.02, desc:'Stores grain against a bad winter.' },
+  quarry:   { name:'Quarry',       icon:'⛏️', era:1, needs:'rock',     cost:{wood:12},                 yield:{ore:1.6},              cap:0,  stability:0,    desc:'Stone from the high ground.' },
+  mine:     { name:'Mine',         icon:'💎', era:1, needs:'ore',      cost:{wood:14},                 yield:{ore:2.8,gold:1.0},     cap:0,  stability:-0.01,desc:'Ore and a little wealth, at some cost to the miners.' },
+  house:    { name:'Longhouse',    icon:'🏠', era:1, needs:null,       cost:{wood:14,ore:4},           yield:{},                     cap:5,  stability:0.01, desc:'Proper housing for a growing town.' },
+  harbour:  { name:'Harbour',      icon:'⛵', era:1, needs:'coast',    cost:{wood:18,ore:4},           yield:{food:2.0,gold:1.4},    cap:2,  stability:0.01, desc:'Fish and foreign goods come in on the tide.' },
+  shrine:   { name:'Shrine',       icon:'⛩️', era:1, needs:null,       cost:{wood:16,ore:6},           yield:{sci:0.5},              cap:0,  stability:0.05, desc:'Keeps the people calm and the state stable.' },
+  barracks: { name:'Barracks',     icon:'🗡️', era:2, needs:null,       cost:{wood:20,ore:14},          yield:{},                     cap:1,  stability:-0.01,defence:0.22, desc:'Trains soldiers. Armies muster faster and hit harder.' },
+  market:   { name:'Market',       icon:'🏺', era:2, needs:null,       cost:{wood:22,ore:10},          yield:{gold:2.8,food:0.5},    cap:2,  stability:0.02, desc:'Turns surplus into gold.' },
+  windmill: { name:'Windmill',     icon:'🌬️', era:2, needs:null,       cost:{wood:18,ore:6},           yield:{food:2.0},             cap:0,  stability:0,    desc:'Grinds far more grain than hands ever could.' },
+  workshop: { name:'Workshop',     icon:'🔨', era:2, needs:null,       cost:{wood:16,ore:12},          yield:{wood:1.4,ore:1.2},     cap:1,  stability:0,    desc:'Turns raw material into more of everything.' },
+  tower:    { name:'Watchtower',   icon:'🗼', era:2, needs:null,       cost:{wood:14,ore:22},          yield:{},                     cap:0,  stability:0,    defence:0.4, desc:'Hard to take. Defends the tile it stands on.' },
+  library:  { name:'Library',      icon:'📚', era:3, needs:null,       cost:{wood:26,ore:18,gold:20},  yield:{sci:3.0},              cap:1,  stability:0.02, desc:'Drives the state toward the next age.' },
+  forge:    { name:'Forge',        icon:'🔥', era:3, needs:null,       cost:{wood:24,ore:30,gold:16},  yield:{gold:1.6},             cap:1,  stability:0,    defence:0.1, armyPower:0.12, desc:'Better steel. Every army fights harder.' },
+  aqueduct: { name:'Aqueduct',     icon:'💧', era:3, needs:null,       cost:{wood:20,ore:34},          yield:{food:1.0},             cap:3,  stability:0.03, desc:'Clean water lets a town grow far past its wells.' },
+  amphi:    { name:'Amphitheatre', icon:'🎭', era:3, needs:null,       cost:{wood:30,ore:26,gold:20},  yield:{gold:1.0},             cap:1,  stability:0.07, desc:'Spectacle keeps a restless city content.' },
+  fortress: { name:'Fortress',     icon:'🏰', era:3, needs:null,       cost:{wood:30,ore:46,gold:20},  yield:{},                     cap:1,  stability:0.01, defence:0.75, desc:'Almost impossible to take by storm.' },
+  observatory:{name:'Observatory', icon:'🔭', era:4, needs:null,       cost:{wood:26,ore:34,gold:60},  yield:{sci:3.6},              cap:0,  stability:0.01, desc:'Charts the sky, and everything that follows from it.' },
+  university:{ name:'University',  icon:'🎓', era:4, needs:null,       cost:{wood:40,ore:36,gold:90},  yield:{sci:5.0,gold:0.8},     cap:2,  stability:0.03, desc:'The fastest road into the next age.' },
+  wonder:   { name:'Great Work',   icon:'🏯', era:4, needs:null,       cost:{wood:70,ore:70,gold:120}, yield:{sci:2.0,gold:2.0},     cap:4,  stability:0.10, desc:'A monument for the ages. Awe holds a realm together.' }
+};
+const BUILD_ORDER = ['farm','camp','hut','granary','house','harbour','mine','quarry','shrine','market','windmill','workshop','barracks','library','forge','aqueduct','amphi','fortress','tower','observatory','university','wonder'];
+
+const RESOURCE_LABEL = { farmland:'Farmland', forest:'Woodland', plain:'Open plain', rock:'Bare rock', ore:'Ore seam', reeds:'Reed beds' };
+
+/* ============================ STATE ============================ */
+let scene, camera, renderer, raycaster;
+let terrainMesh, terrainGeo, vertHeights, tiles;
+let sunLight, fillLight, ambient, skyDome, starField, sunOrb;
+let nations = [], nationsById = new Map();
+let agents = [], armies = [];
+let nextNationId = 1, nextAgentId = 1, nextArmyId = 1;
+let seed = Math.random() * 1000;
+
+let paused = false;
+let speedMult = 1;
+let tickAccum = 0, tickProgress = 0;
+let lastFrameTime = performance.now();
+let day = 0;
+let terrainDirty = false;
+let usedNames = new Set();
+let buildingCount = 0;
+let favour = MAX_FAVOUR;
+let armedPower = null;
+let worldEventCooldown = 26 + Math.floor(Math.random() * 18);
+let historySamples = [];
+let seasonIndex = 0;
+
+const chronicle = [];
+const groundRings = [];
+const floatIcons = [];
+const pings = [];
+const decorMeshes = [];
+const tradeLines = [];
+const spinners = [];
+let shake = 0;
+
+const options = {
+  buildings: true,
+  armies: true,
+  decor: true,
+  toasts: true,
+  dayNight: true,
+  seasons: true,
+  autoOrbit: false
+};
+
+const cam = { radius: GRID * 0.86, polar: 0.92, azimuth: Math.PI * 0.25, target: null };
+let dragging = false, lastPX = 0, lastPY = 0, clickStartX = 0, clickStartY = 0;
+
+/* ============================ NOISE ============================ */
+function hash(x, y, s){
+  const h = Math.sin(x * 127.1 + y * 311.7 + s * 74.7) * 43758.5453123;
+  return h - Math.floor(h);
+}
+function smoothNoise(x, y, s){
+  const xi = Math.floor(x), yi = Math.floor(y);
+  const xf = x - xi, yf = y - yi;
+  const u = xf * xf * (3 - 2 * xf), v = yf * yf * (3 - 2 * yf);
+  const a = hash(xi, yi, s), b = hash(xi + 1, yi, s);
+  const c = hash(xi, yi + 1, s), d = hash(xi + 1, yi + 1, s);
+  return a + (b - a) * u + (c - a) * v + (a - b - c + d) * u * v;
+}
+function fbm(x, y, s){
+  let total = 0, amp = 0.5, freq = 1, max = 0;
+  for(let i = 0; i < 5; i++){
+    total += smoothNoise(x * freq, y * freq, s) * amp;
+    max += amp; amp *= 0.5; freq *= 2;
+  }
+  return total / max;
+}
+
+/* ============================ HELPERS ============================ */
+function key(cx, cz){ return cx + ',' + cz; }
+function parseKey(k){ const i = k.indexOf(','); return [ +k.slice(0, i), +k.slice(i + 1) ]; }
+function cellX(cx){ return (cx - GRID / 2 + 0.5) * TILE; }
+function cellZ(cz){ return (cz - GRID / 2 + 0.5) * TILE; }
+function inBounds(cx, cz){ return cx >= 0 && cx < GRID && cz >= 0 && cz < GRID; }
+function isLand(cx, cz){ return inBounds(cx, cz) && tiles[cz][cx].type !== 'water'; }
+function isCoastal(cx, cz){
+  if(!isLand(cx, cz)) return false;
+  for(const [nx, nz] of neighborsOf(cx, cz)) if(!isLand(nx, nz)) return true;
+  return false;
+}
+function neighborsOf(cx, cz){ return [[cx + 1, cz], [cx - 1, cz], [cx, cz + 1], [cx, cz - 1]]; }
+function clamp(v, a, b){ return v < a ? a : (v > b ? b : v); }
+function pick(arr){ return arr[Math.floor(Math.random() * arr.length)]; }
+function fmt(n){ return Math.round(n).toLocaleString(); }
+function season(){ return SEASONS[seasonIndex]; }
+function dayPhase(){ return options.dayNight ? ((day % DAY_LENGTH) + tickProgress) / DAY_LENGTH : 0.5; }
+function clockWord(){
+  const p = dayPhase();
+  if(!options.dayNight) return 'midday';
+  if(p < 0.14 || p > 0.88) return 'deep night';
+  if(p < 0.32) return 'dawn';
+  if(p < 0.62) return 'midday';
+  if(p < 0.8) return 'evening';
+  return 'nightfall';
+}
+
+/* ============================ THREE SETUP ============================ */
+function initThree(){
+  scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x090d13);
+  scene.fog = new THREE.Fog(0x090d13, GRID * 0.72, GRID * 1.8);
+
+  const stage = document.getElementById('stage');
+  camera = new THREE.PerspectiveCamera(46, stage.clientWidth / stage.clientHeight, 0.1, 600);
+
+  renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.setSize(stage.clientWidth, stage.clientHeight);
+  stage.appendChild(renderer.domElement);
+
+  ambient = new THREE.AmbientLight(0x93a6c6, 0.62);
+  scene.add(ambient);
+  sunLight = new THREE.DirectionalLight(0xfff0d4, 1.05);
+  sunLight.position.set(GRID * 0.6, GRID * 0.9, GRID * 0.3);
+  scene.add(sunLight);
+  fillLight = new THREE.DirectionalLight(0x4d6fa8, 0.34);
+  fillLight.position.set(-GRID * 0.5, GRID * 0.4, -GRID * 0.4);
+  scene.add(fillLight);
+
+  sunOrb = new THREE.Mesh(
+    new THREE.SphereGeometry(1.5, 14, 12),
+    new THREE.MeshBasicMaterial({ color: 0xffe9b0 })
+  );
+  scene.add(sunOrb);
+
+  buildStars();
+
+  raycaster = new THREE.Raycaster();
+  cam.target = new THREE.Vector3(0, 1.1, 0);
+  updateCamera();
+
+  window.addEventListener('resize', onResize);
+  setupPointer();
+}
+
+function buildStars(){
+  const g = new THREE.BufferGeometry();
+  const pts = [];
+  for(let i = 0; i < 600; i++){
+    const r = GRID * 2.2;
+    const th = Math.random() * Math.PI * 2;
+    const ph = Math.acos(Math.random() * 0.9 + 0.05);
+    pts.push(r * Math.sin(ph) * Math.cos(th), r * Math.cos(ph) * 0.8 + 6, r * Math.sin(ph) * Math.sin(th));
+  }
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3));
+  starField = new THREE.Points(g, new THREE.PointsMaterial({ color: 0xdfe8f5, size: 0.35, transparent: true, opacity: 0 }));
+  scene.add(starField);
+}
+
+function onResize(){
+  const stage = document.getElementById('stage');
+  camera.aspect = stage.clientWidth / stage.clientHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(stage.clientWidth, stage.clientHeight);
+}
+
+function updateCamera(){
+  const r = cam.radius, p = cam.polar, a = cam.azimuth;
+  camera.position.set(
+    cam.target.x + r * Math.sin(p) * Math.sin(a) + (Math.random() - 0.5) * shake,
+    cam.target.y + r * Math.cos(p) + (Math.random() - 0.5) * shake,
+    cam.target.z + r * Math.sin(p) * Math.cos(a) + (Math.random() - 0.5) * shake
+  );
+  camera.lookAt(cam.target);
+}
+
+function setupPointer(){
+  const dom = renderer.domElement;
+  dom.addEventListener('pointerdown', (e) => {
+    dragging = true; lastPX = e.clientX; lastPY = e.clientY;
+    clickStartX = e.clientX; clickStartY = e.clientY;
+    try { dom.setPointerCapture(e.pointerId); } catch(err){}
+  });
+  dom.addEventListener('pointerup', () => { dragging = false; });
+  dom.addEventListener('pointercancel', () => { dragging = false; });
+  dom.addEventListener('pointermove', (e) => {
+    if(!dragging) return;
+    const dx = e.clientX - lastPX, dy = e.clientY - lastPY;
+    lastPX = e.clientX; lastPY = e.clientY;
+    cam.azimuth -= dx * 0.0055;
+    cam.polar = clamp(cam.polar - dy * 0.0045, 0.22, 1.46);
+    updateCamera();
+  });
+  dom.addEventListener('wheel', (e) => {
+    e.preventDefault();
+    cam.radius = clamp(cam.radius + e.deltaY * 0.022, GRID * 0.24, GRID * 1.35);
+    updateCamera();
+  }, { passive: false });
+  dom.addEventListener('click', (e) => {
+    if(Math.abs(e.clientX - clickStartX) > 4 || Math.abs(e.clientY - clickStartY) > 4) return;
+    handleWorldClick(e);
+  });
+}
+
+function cellFromEvent(e){
+  const stage = document.getElementById('stage');
+  const rect = stage.getBoundingClientRect();
+  const m = new THREE.Vector2(
+    ((e.clientX - rect.left) / rect.width) * 2 - 1,
+    -((e.clientY - rect.top) / rect.height) * 2 + 1
+  );
+  raycaster.setFromCamera(m, camera);
+  const hits = raycaster.intersectObject(terrainMesh);
+  if(!hits.length) return null;
+  const p = hits[0].point;
+  return {
+    cx: clamp(Math.floor(p.x / TILE + GRID / 2), 0, GRID - 1),
+    cz: clamp(Math.floor(p.z / TILE + GRID / 2), 0, GRID - 1)
+  };
+}
+
+/* ============================ WORLD GENERATION ============================ */
+function generateWorldData(){
+  seed = Math.random() * 1000;
+  tiles = [];
+  for(let cz = 0; cz < GRID; cz++){
+    const row = [];
+    for(let cx = 0; cx < GRID; cx++){
+      row.push({ cx, cz, hRaw: 0, y: 0, type: 'land', resource: null, owner: null, building: null, buildingMesh: null, fertility: 1 });
+    }
+    tiles.push(row);
+  }
+
+  vertHeights = [];
+  for(let gz = 0; gz <= GRID; gz++){
+    const row = [];
+    for(let gx = 0; gx <= GRID; gx++){
+      let h = fbm(gx / GRID * 2.5, gz / GRID * 2.5, seed);
+      // pull the edges down so the world reads as an island, not a cropped plane
+      const ex = Math.min(gx, GRID - gx) / (GRID * 0.5);
+      const ez = Math.min(gz, GRID - gz) / (GRID * 0.5);
+      const edge = Math.min(1, Math.min(ex, ez) * 2.1);
+      h = h * (0.30 + 0.70 * edge);
+      row.push(h);
+    }
+    vertHeights.push(row);
+  }
+
+  for(let cz = 0; cz < GRID; cz++){
+    for(let cx = 0; cx < GRID; cx++) recomputeTile(cx, cz, true);
+  }
+}
+
+function recomputeTile(cx, cz, assignResource){
+  const t = tiles[cz][cx];
+  const h = (vertHeights[cz][cx] + vertHeights[cz + 1][cx] + vertHeights[cz][cx + 1] + vertHeights[cz + 1][cx + 1]) / 4;
+  t.hRaw = h;
+  t.y = h * HEIGHT_SCALE;
+  const prevType = t.type;
+  t.type = h < WATER_LEVEL ? 'water' : (h < MOUNTAIN_LEVEL ? 'land' : 'mountain');
+  if(assignResource || prevType !== t.type){
+    if(t.type === 'land'){
+      const r = Math.random();
+      const coastal = touchesWater(cx, cz);
+      t.resource = coastal && r < 0.18 ? 'reeds' : (r < 0.34 ? 'forest' : (r < 0.64 ? 'farmland' : 'plain'));
+    } else if(t.type === 'mountain'){
+      t.resource = Math.random() < 0.3 ? 'ore' : 'rock';
+    } else {
+      t.resource = null;
+    }
+  }
+}
+
+function touchesWater(cx, cz){
+  for(const [nx, nz] of neighborsOf(cx, cz)){
+    if(inBounds(nx, nz) && (vertHeights[nz][nx] + vertHeights[nz + 1][nx + 1]) / 2 < WATER_LEVEL) return true;
+  }
+  return false;
+}
+
+/* ============================ TERRAIN COLOUR ============================ */
+const C_DEEP = new THREE.Color(0x0a1f33), C_SHALLOW = new THREE.Color(0x2a76a0);
+const C_LOW = new THREE.Color(0x3c6b39), C_HIGH = new THREE.Color(0x8b7c4c);
+const C_ROCK = new THREE.Color(0x857f78), C_SNOW = new THREE.Color(0xeef1f4);
+let seasonColor = new THREE.Color(0x67b04a);
+
+function cellBaseColor(t){
+  let c;
+  if(t.type === 'water'){
+    c = C_DEEP.clone().lerp(C_SHALLOW, clamp(t.hRaw / WATER_LEVEL, 0, 1));
+  } else if(t.type === 'land'){
+    const k = clamp((t.hRaw - WATER_LEVEL) / (MOUNTAIN_LEVEL - WATER_LEVEL), 0, 1);
+    c = C_LOW.clone().lerp(C_HIGH, k);
+    if(t.resource === 'forest') c.lerp(new THREE.Color(0x2f5730), 0.35);
+    if(t.resource === 'farmland') c.lerp(new THREE.Color(0x7d9440), 0.25);
+    if(options.seasons) c.lerp(seasonColor, season().tintAmt);
+  } else {
+    const k = clamp((t.hRaw - MOUNTAIN_LEVEL) / (1 - MOUNTAIN_LEVEL), 0, 1);
+    c = C_ROCK.clone().lerp(C_SNOW, k);
+    if(options.seasons && seasonIndex === 3) c.lerp(C_SNOW, 0.35);
+  }
+  return c;
+}
+
+let colorCache = null;
+function cellColor(cx, cz){
+  const idx = cz * GRID + cx;
+  let cached = colorCache[idx];
+  if(cached) return cached;
+  const t = tiles[cz][cx];
+  let c = cellBaseColor(t);
+  if(t.owner){
+    const n = nationsById.get(t.owner);
+    if(n){
+      let border = false;
+      for(const [nx, nz] of neighborsOf(cx, cz)){
+        if(!inBounds(nx, nz) || tiles[nz][nx].owner !== t.owner){ border = true; break; }
+      }
+      c = c.lerp(n.color, border ? 0.68 : 0.36);
+    }
+  }
+  colorCache[idx] = c;
+  return c;
+}
+
+function updateTerrainColors(){
+  const attr = terrainGeo.attributes.color;
+  colorCache = new Array(GRID * GRID);
+  for(let gz = 0; gz <= GRID; gz++){
+    for(let gx = 0; gx <= GRID; gx++){
+      let r = 0, g = 0, b = 0, n = 0;
+      for(const [ncx, ncz] of [[gx - 1, gz - 1], [gx, gz - 1], [gx - 1, gz], [gx, gz]]){
+        if(inBounds(ncx, ncz)){ const c = cellColor(ncx, ncz); r += c.r; g += c.g; b += c.b; n++; }
+      }
+      if(!n) n = 1;
+      const i = (gz * (GRID + 1) + gx) * 3;
+      attr.array[i] = r / n; attr.array[i + 1] = g / n; attr.array[i + 2] = b / n;
+    }
+  }
+  attr.needsUpdate = true;
+  colorCache = null;
+}
+
+let waterVerts = [];
+function buildTerrainMesh(){
+  if(terrainMesh){
+    scene.remove(terrainMesh);
+    terrainGeo.dispose();
+    terrainMesh.material.dispose();
+  }
+  const positions = [], colors = [], indices = [];
+  for(let gz = 0; gz <= GRID; gz++){
+    for(let gx = 0; gx <= GRID; gx++){
+      positions.push((gx - GRID / 2) * TILE, vertHeights[gz][gx] * HEIGHT_SCALE, (gz - GRID / 2) * TILE);
+      colors.push(0.5, 0.5, 0.5);
+    }
+  }
+  for(let gz = 0; gz < GRID; gz++){
+    for(let gx = 0; gx < GRID; gx++){
+      const a = gz * (GRID + 1) + gx, b = a + 1, c = a + (GRID + 1), d = c + 1;
+      indices.push(a, c, b, b, c, d);
+    }
+  }
+  terrainGeo = new THREE.BufferGeometry();
+  terrainGeo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+  terrainGeo.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+  terrainGeo.setIndex(indices);
+  terrainGeo.computeVertexNormals();
+
+  terrainMesh = new THREE.Mesh(terrainGeo, new THREE.MeshLambertMaterial({ vertexColors: true }));
+  scene.add(terrainMesh);
+  cacheWaterVerts();
+  updateTerrainColors();
+}
+
+function cacheWaterVerts(){
+  waterVerts = [];
+  for(let gz = 0; gz <= GRID; gz++){
+    for(let gx = 0; gx <= GRID; gx++){
+      if(vertHeights[gz][gx] < WATER_LEVEL - 0.01){
+        const i = gz * (GRID + 1) + gx;
+        waterVerts.push({ i, base: vertHeights[gz][gx] * HEIGHT_SCALE, ph: (gx * 0.7 + gz * 1.1) });
+      }
+    }
+  }
+}
+
+function animateWater(t){
+  if(!terrainGeo) return;
+  const arr = terrainGeo.attributes.position.array;
+  for(let k = 0; k < waterVerts.length; k++){
+    const w = waterVerts[k];
+    arr[w.i * 3 + 1] = w.base + Math.sin(t * 1.4 + w.ph) * 0.035;
+  }
+  terrainGeo.attributes.position.needsUpdate = true;
+}
+
+/* ============================ TERRAIN RESHAPING (divine) ============================ */
+function reshapeTerrain(cx, cz, delta, radius){
+  for(let gz = Math.max(0, cz - radius); gz <= Math.min(GRID, cz + radius + 1); gz++){
+    for(let gx = Math.max(0, cx - radius); gx <= Math.min(GRID, cx + radius + 1); gx++){
+      const d = Math.hypot(gx - (cx + 0.5), gz - (cz + 0.5));
+      if(d > radius + 0.6) continue;
+      const fall = Math.pow(Math.max(0, 1 - d / (radius + 0.6)), 1.6);
+      vertHeights[gz][gx] = clamp(vertHeights[gz][gx] + delta * fall, 0.02, 0.99);
+    }
+  }
+  const arr = terrainGeo.attributes.position.array;
+  for(let gz = Math.max(0, cz - radius - 1); gz <= Math.min(GRID, cz + radius + 2); gz++){
+    for(let gx = Math.max(0, cx - radius - 1); gx <= Math.min(GRID, cx + radius + 2); gx++){
+      arr[(gz * (GRID + 1) + gx) * 3 + 1] = vertHeights[gz][gx] * HEIGHT_SCALE;
+    }
+  }
+  for(let tz = Math.max(0, cz - radius - 1); tz <= Math.min(GRID - 1, cz + radius + 1); tz++){
+    for(let tx = Math.max(0, cx - radius - 1); tx <= Math.min(GRID - 1, cx + radius + 1); tx++){
+      recomputeTile(tx, tz, false);
+      const t = tiles[tz][tx];
+      if(t.type === 'water'){
+        if(t.buildingMesh){ disposeObj(t.buildingMesh); t.buildingMesh = null; t.building = null; buildingCount--; }
+        if(t.owner){
+          const n = nationsById.get(t.owner);
+          if(n){ n.tiles.delete(key(tx, tz)); if(!n.tiles.size) eliminateNation(n, 'swallowed by the sea'); }
+          t.owner = null;
+        }
+      }
+      if(t.buildingMesh) t.buildingMesh.position.y = t.y;
+    }
+  }
+  for(const a of agents){
+    if(Math.abs(a.cx - cx) <= radius + 1 && Math.abs(a.cz - cz) <= radius + 1){
+      a.prevY = a.nextY = tiles[a.cz][a.cx].y;
+      if(!isLand(a.cx, a.cz)) relocateToLand(a);
+    }
+  }
+  for(const d of decorMeshes){
+    if(Math.abs(d.userData.cx - cx) <= radius + 1 && Math.abs(d.userData.cz - cz) <= radius + 1){
+      const t = tiles[d.userData.cz][d.userData.cx];
+      d.visible = t.type !== 'water';
+      d.position.y = t.y + d.userData.yOff;
+    }
+  }
+  for(const n of nations){
+    if(n.eliminated || !n.capitalMesh) continue;
+    const t = tiles[n.capital.cz][n.capital.cx];
+    n.capitalMesh.position.y = t.y;
+  }
+  terrainGeo.computeVertexNormals();
+  terrainGeo.attributes.position.needsUpdate = true;
+  cacheWaterVerts();
+  terrainDirty = true;
+}
+
+function relocateToLand(agent){
+  for(let r = 1; r < 6; r++){
+    for(let dz = -r; dz <= r; dz++){
+      for(let dx = -r; dx <= r; dx++){
+        const nx = agent.cx + dx, nz = agent.cz + dz;
+        if(isLand(nx, nz)){
+          agent.cx = nx; agent.cz = nz;
+          agent.prevX = agent.nextX = cellX(nx);
+          agent.prevZ = agent.nextZ = cellZ(nz);
+          agent.prevY = agent.nextY = tiles[nz][nx].y;
+          return;
+        }
+      }
+    }
+  }
+}
+
+/* ============================ DECOR ============================ */
+let decorMats = null;
+let decorGeos = [];
+function buildDecorations(){
+  for(const d of decorMeshes){ scene.remove(d); }
+  decorMeshes.length = 0;
+  for(const g of decorGeos) g.dispose();
+  decorGeos = [];
+  if(!decorMats){
+    decorMats = {
+      leaf: new THREE.MeshLambertMaterial({ color: 0x3a6b33 }),
+      leafDark: new THREE.MeshLambertMaterial({ color: 0x2c5730 }),
+      trunk: new THREE.MeshLambertMaterial({ color: 0x584028 }),
+      crystal: new THREE.MeshLambertMaterial({ color: 0x86c0dc }),
+      reed: new THREE.MeshLambertMaterial({ color: 0x8aa04c }),
+      rock: new THREE.MeshLambertMaterial({ color: 0x77726b })
+    };
+  }
+  const geoTrunk = new THREE.CylinderGeometry(0.025, 0.035, 0.16, 5);
+  const geoLeaf = new THREE.ConeGeometry(0.14, 0.34, 6);
+  const geoCrystal = new THREE.ConeGeometry(0.075, 0.24, 4);
+  const geoReed = new THREE.ConeGeometry(0.05, 0.26, 4);
+  const geoRock = new THREE.DodecahedronGeometry(0.1, 0);
+  decorGeos = [geoTrunk, geoLeaf, geoCrystal, geoReed, geoRock];
+
+  function add(geo, mat, cx, cz, yOff, jx, jz, rot){
+    const m = new THREE.Mesh(geo, mat);
+    m.position.set(cellX(cx) + jx, tiles[cz][cx].y + yOff, cellZ(cz) + jz);
+    if(rot) m.rotation.y = rot;
+    m.userData = { cx, cz, yOff };
+    scene.add(m); decorMeshes.push(m);
+  }
+
+  for(let cz = 0; cz < GRID; cz++){
+    for(let cx = 0; cx < GRID; cx++){
+      const t = tiles[cz][cx];
+      const jx = (Math.random() - 0.5) * 0.4, jz = (Math.random() - 0.5) * 0.4;
+      if(t.resource === 'forest' && Math.random() < 0.55){
+        add(geoTrunk, decorMats.trunk, cx, cz, 0.08, jx, jz);
+        add(geoLeaf, Math.random() < 0.5 ? decorMats.leaf : decorMats.leafDark, cx, cz, 0.3, jx, jz);
+      } else if(t.resource === 'ore' && Math.random() < 0.4){
+        add(geoCrystal, decorMats.crystal, cx, cz, 0.12, jx, jz, Math.random() * Math.PI);
+      } else if(t.resource === 'reeds' && Math.random() < 0.6){
+        add(geoReed, decorMats.reed, cx, cz, 0.13, jx, jz, Math.random() * Math.PI);
+      } else if(t.resource === 'rock' && Math.random() < 0.25){
+        add(geoRock, decorMats.rock, cx, cz, 0.05, jx, jz, Math.random() * Math.PI);
+      }
+    }
+  }
+  applyDecorVisibility();
+}
+function applyDecorVisibility(){
+  for(const d of decorMeshes) d.visible = options.decor && tiles[d.userData.cz][d.userData.cx].type !== 'water';
+}
+
+function disposeObj(obj){
+  if(!obj) return;
+  scene.remove(obj);
+  obj.traverse(o => {
+    if(o.geometry) o.geometry.dispose();
+    if(o.material){
+      if(Array.isArray(o.material)) o.material.forEach(m => m.dispose());
+      else o.material.dispose();
+    }
+  });
+}
+
+/* ============================ NAMES & COLOURS ============================ */
+function makeNationName(){
+  for(let i = 0; i < 40; i++){
+    const n = pick(NAME_PREFIX) + pick(NAME_SUFFIX);
+    if(!usedNames.has(n)){ usedNames.add(n); return n; }
+  }
+  return 'State ' + nextNationId;
+}
+function makeNationColor(i){
+  const c = new THREE.Color();
+  c.setHSL(((i * 137.508) % 360) / 360, 0.56, 0.52);
+  return c;
+}
+
+/* ============================ ATMOSPHERE ============================ */
+const DAY_SKY = new THREE.Color(0x2b4670);
+const NIGHT_SKY = new THREE.Color(0x0b1220);
+const DUSK_SKY = new THREE.Color(0x2a2233);
+
+function updateAtmosphere(t){
+  const phase = dayPhase();
+  const angle = phase * Math.PI * 2 - Math.PI / 2;
+  const elev = Math.sin(angle);
+  // the world never goes fully dark — night is a cool blue wash, not a blackout
+  const lightness = clamp((elev + 0.62) / 1.35, 0.26, 1);
+
+  sunLight.position.set(Math.cos(angle) * GRID * 0.9, Math.max(elev, -0.1) * GRID * 0.95 + 8, GRID * 0.35);
+  sunLight.intensity = 0.3 + lightness * 0.8;
+  sunLight.color.setHSL(0.10, 0.42 - lightness * 0.26, 0.5 + lightness * 0.3);
+  ambient.intensity = 0.38 + lightness * 0.2;
+  ambient.color.setRGB(0.46 + lightness * 0.2, 0.52 + lightness * 0.16, 0.7 + lightness * 0.08);
+  fillLight.intensity = 0.18 + (1 - lightness) * 0.22;
+
+  sunOrb.position.copy(sunLight.position).multiplyScalar(1.15);
+  sunOrb.visible = elev > -0.15;
+  sunOrb.material.color.setHSL(0.10, 0.6, 0.6 + lightness * 0.3);
+
+  const dusk = 1 - Math.abs(lightness - 0.5) * 2;
+  const skyC = NIGHT_SKY.clone().lerp(DAY_SKY, lightness).lerp(DUSK_SKY, dusk * 0.35);
+  scene.background.copy(skyC);
+  scene.fog.color.copy(skyC);
+  starField.material.opacity = clamp(1 - (lightness - 0.26) * 3.4, 0, 0.8);
+  starField.rotation.y = t * 0.006;
+}
+
+function updateSeason(){
+  const idx = Math.floor(day / DAYS_PER_SEASON) % 4;
+  if(idx !== seasonIndex){
+    seasonIndex = idx;
+    seasonColor = new THREE.Color(season().tint);
+    terrainDirty = true;
+    return true;
+  }
+  return false;
+}
+
+/* ==================================================================
+   Part 2 of 3: peoples, states, economies, armies, history
+   ================================================================== */
+
+/* ============================ AGENTS ============================ */
+const AGENT_GEO = { citizen: null };
+function agentGeos(){
+  if(!AGENT_GEO.citizen) AGENT_GEO.citizen = new THREE.ConeGeometry(0.16, 0.44, 6);
+  return AGENT_GEO;
+}
+
+function spawnAgent(cx, cz, nationId){
+  if(agents.length >= MAX_AGENTS || !isLand(cx, cz)) return null;
+  const n = nationId ? nationsById.get(nationId) : null;
+  const mesh = new THREE.Mesh(agentGeos().citizen, new THREE.MeshLambertMaterial({ color: n ? n.color.clone() : new THREE.Color(0x9aa5b8) }));
+  const wx = cellX(cx), wz = cellZ(cz), wy = tiles[cz][cx].y;
+  mesh.position.set(wx, wy + 0.22, wz);
+  scene.add(mesh);
+  const a = {
+    id: nextAgentId++, cx, cz, nationId: nationId || null,
+    prevX: wx, prevZ: wz, prevY: wy, nextX: wx, nextZ: wz, nextY: wy,
+    mesh, bob: Math.random() * 6
+  };
+  agents.push(a);
+  return a;
+}
+
+function removeAgent(agent){
+  scene.remove(agent.mesh);
+  agent.mesh.material.dispose();
+  const i = agents.indexOf(agent);
+  if(i >= 0) agents.splice(i, 1);
+}
+
+function citizensOf(nationId){ return agents.filter(a => a.nationId === nationId); }
+
+function killCitizens(nation, count){
+  let lost = 0;
+  const pool = citizensOf(nation.id);
+  for(let i = 0; i < count && pool.length > 1; i++){
+    const idx = Math.floor(Math.random() * pool.length);
+    removeAgent(pool[idx]); pool.splice(idx, 1); lost++;
+  }
+  return lost;
+}
+
+function moveAgent(agent){
+  agent.prevX = agent.nextX; agent.prevZ = agent.nextZ; agent.prevY = agent.nextY;
+  let dirs = neighborsOf(agent.cx, agent.cz).filter(([x, z]) => isLand(x, z));
+  if(!dirs.length) return;
+  // citizens drift toward their own land, wanderers roam freely
+  if(agent.nationId){
+    const own = dirs.filter(([x, z]) => tiles[z][x].owner === agent.nationId);
+    if(own.length && Math.random() < 0.75) dirs = own;
+  }
+  const [nx, nz] = pick(dirs);
+  agent.cx = nx; agent.cz = nz;
+  agent.nextX = cellX(nx); agent.nextZ = cellZ(nz); agent.nextY = tiles[nz][nx].y;
+  const dx = agent.nextX - agent.prevX, dz = agent.nextZ - agent.prevZ;
+  if(dx || dz) agent.mesh.rotation.y = Math.atan2(dx, dz);
+}
+
+function randomLandCell(){
+  for(let i = 0; i < 90; i++){
+    const cx = Math.floor(Math.random() * GRID), cz = Math.floor(Math.random() * GRID);
+    if(isLand(cx, cz)) return { cx, cz };
+  }
+  return { cx: GRID >> 1, cz: GRID >> 1 };
+}
+
+/* ============================ NATIONS ============================ */
+function nearestNationDistance(cx, cz){
+  let best = Infinity;
+  for(const n of nations){
+    if(n.eliminated) continue;
+    const d = Math.hypot(n.capital.cx - cx, n.capital.cz - cz);
+    if(d < best) best = d;
+  }
+  return best;
+}
+
+function createCapitalMarker(nation, cx, cz){
+  const g = new THREE.Group();
+  const poleH = 1.25;
+  const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, poleH, 6), new THREE.MeshLambertMaterial({ color: 0xd8d2c4 }));
+  pole.position.y = poleH / 2; g.add(pole);
+  const flag = new THREE.Mesh(new THREE.PlaneGeometry(0.36, 0.22), new THREE.MeshLambertMaterial({ color: nation.color.clone(), side: THREE.DoubleSide }));
+  flag.position.set(0.19, poleH - 0.14, 0); g.add(flag);
+  const base = new THREE.Mesh(new THREE.CylinderGeometry(0.24, 0.3, 0.1, 8), new THREE.MeshLambertMaterial({ color: nation.color.clone().multiplyScalar(0.6) }));
+  base.position.y = 0.05; g.add(base);
+  g.position.set(cellX(cx), tiles[cz][cx].y, cellZ(cz));
+  g.userData.flag = flag;
+  return g;
+}
+
+function foundNation(agent){
+  const nation = {
+    id: nextNationId, name: makeNationName(), color: makeNationColor(nextNationId),
+    trait: pick(TRAITS),
+    capital: { cx: agent.cx, cz: agent.cz },
+    tiles: new Set(), wars: new Map(), allies: new Set(), trades: new Set(),
+    stock: { food: 14, wood: 16, ore: 4, gold: 8 },
+    science: 0, era: 0, stability: 0.66, pop: 1, popCap: 4,
+    buildings: {}, armyBonus: 0, defenceBonus: 0,
+    founded: day, eliminated: false, log: [],
+    cooldowns: { expand: 3, grow: 2, build: 4, diplo: 5 + Math.floor(Math.random() * 6), army: 8 },
+    peak: { tiles: 1, pop: 1 }
+  };
+  nextNationId++;
+  nations.push(nation);
+  nationsById.set(nation.id, nation);
+  claimTile(nation, agent.cx, agent.cz);
+  agent.nationId = nation.id;
+  agent.mesh.material.color.copy(nation.color);
+  nation.capitalMesh = createCapitalMarker(nation, agent.cx, agent.cz);
+  scene.add(nation.capitalMesh);
+  noteHistory(nation, 'Founded on day ' + day);
+  fireEvent({
+    kind: 'found', icon: '🚩', color: 0x4fb9a1,
+    title: nation.name + ' is founded',
+    text: `A ${nation.trait.name.toLowerCase()} people (${nation.trait.icon}) raise their flag.`,
+    cx: agent.cx, cz: agent.cz
+  });
+}
+
+function noteHistory(nation, text){
+  nation.log.unshift({ day, text });
+  if(nation.log.length > 14) nation.log.pop();
+}
+
+function claimTile(nation, cx, cz, viaConquest){
+  const t = tiles[cz][cx];
+  if(t.owner === nation.id || t.type === 'water') return;
+  const prevId = t.owner;
+  if(prevId){
+    const prev = nationsById.get(prevId);
+    if(prev){
+      prev.tiles.delete(key(cx, cz));
+      if(t.building) prev.buildings[t.building] = Math.max(0, (prev.buildings[t.building] || 0) - 1);
+      if(prev.tiles.size === 0 && !prev.eliminated) eliminateNation(prev, 'conquered');
+    }
+  }
+  t.owner = nation.id;
+  nation.tiles.add(key(cx, cz));
+  if(t.building) nation.buildings[t.building] = (nation.buildings[t.building] || 0) + 1;
+  if(t.buildingMesh) recolorBuilding(t.buildingMesh, nation.color);
+  for(const a of agents){
+    if(a.cx === cx && a.cz === cz && a.nationId === null){
+      a.nationId = nation.id;
+      a.mesh.material.color.copy(nation.color);
+    }
+  }
+  terrainDirty = true;
+}
+
+function eliminateNation(nation, reason){
+  nation.eliminated = true;
+  nation.deadDay = day;
+  for(const eid of nation.wars.keys()){ const e = nationsById.get(eid); if(e) e.wars.delete(nation.id); }
+  nation.wars.clear();
+  for(const aid of nation.allies){ const a = nationsById.get(aid); if(a) a.allies.delete(nation.id); }
+  nation.allies.clear();
+  for(const tid of nation.trades){ const t = nationsById.get(tid); if(t) t.trades.delete(nation.id); }
+  nation.trades.clear();
+  for(const k of nation.tiles){ const [cx, cz] = parseKey(k); if(tiles[cz][cx].owner === nation.id) tiles[cz][cx].owner = null; }
+  nation.tiles.clear();
+  disposeObj(nation.capitalMesh); nation.capitalMesh = null;
+  for(const a of agents){
+    if(a.nationId === nation.id){ a.nationId = null; a.mesh.material.color.set(0x9aa5b8); }
+  }
+  for(let i = armies.length - 1; i >= 0; i--) if(armies[i].nationId === nation.id) destroyArmy(armies[i]);
+  terrainDirty = true;
+  fireEvent({
+    kind: 'war', icon: '🏴', color: 0xd9584a, major: true,
+    title: nation.name + ' has fallen',
+    text: `After ${day - nation.founded} days the last of it was ${reason}.`,
+    cx: nation.capital.cx, cz: nation.capital.cz
+  });
+}
+
+/* ============================ SURVEY & ECONOMY ============================ */
+function surveyNation(n){
+  const s = { food: 0, wood: 0, ore: 0, gold: 0, sci: 0, cap: 0, stab: 0, defence: 0, armyBonus: 0, farmland: 0, forest: 0, ore_t: 0, rock: 0, coast: 0, open: 0 };
+  for(const k of n.tiles){
+    const [cx, cz] = parseKey(k);
+    const t = tiles[cz][cx];
+    if(!t.building) s.open++;
+    if(isCoastal(cx, cz)) s.coast++;
+    if(t.resource === 'rock') s.rock++;
+    if(t.resource === 'farmland'){ s.food += 0.30; s.farmland++; }
+    else if(t.resource === 'forest'){ s.wood += 0.20; s.forest++; }
+    else if(t.resource === 'reeds'){ s.food += 0.18; }
+    else if(t.resource === 'ore'){ s.ore += 0.12; s.ore_t++; }
+    else if(t.resource === 'plain'){ s.food += 0.12; }
+    else if(t.resource === 'rock'){ s.ore += 0.05; }
+    if(t.building){
+      const b = BUILDINGS[t.building];
+      if(b.yield.food) s.food += b.yield.food;
+      if(b.yield.wood) s.wood += b.yield.wood;
+      if(b.yield.ore) s.ore += b.yield.ore;
+      if(b.yield.gold) s.gold += b.yield.gold;
+      if(b.yield.sci) s.sci += b.yield.sci;
+      s.cap += b.cap || 0;
+      s.stab += b.stability || 0;
+      s.defence += b.defence || 0;
+      s.armyBonus += b.armyPower || 0;
+    }
+  }
+  s.cap += 3 + n.tiles.size * 0.32;
+  s.sci += 0.05 * n.pop;
+  s.gold += 0.04 * n.pop;
+  return s;
+}
+
+function economyTick(n){
+  const s = surveyNation(n);
+  n.survey = s;
+  n.popCap = Math.floor(s.cap);
+  n.defenceBonus = s.defence;
+  n.armyBonus = s.armyBonus;
+
+  const seasonGrowth = options.seasons ? season().growth : 1;
+  const eraDef = ERAS[n.era];
+  const foodIn = s.food * n.trait.food * seasonGrowth * eraDef.growth;
+  const eaten = n.pop * 0.52 + armiesOf(n).length * 0.8;
+  n.stock.food += foodIn - eaten;
+  n.stock.wood += s.wood * 0.9;
+  n.stock.ore += s.ore * 0.9;
+  n.stock.gold += s.gold - armiesOf(n).length * 0.45;
+  n.science += s.sci * n.trait.sci * (1 + n.era * 0.08);
+
+  n.foodFlow = foodIn - eaten;
+
+  if(n.stock.food < 0){
+    n.stock.food = 0;
+    n.stability -= 0.055;
+    if(Math.random() < 0.4 && n.pop > 1){
+      const lost = killCitizens(n, 1);
+      if(lost && Math.random() < 0.35){
+        fireEvent({ kind:'disaster', icon:'🍂', color:0xc07a33, title:'Famine in ' + n.name,
+          text:'The granaries are empty and people are leaving.', cx:n.capital.cx, cz:n.capital.cz, quiet:true });
+      }
+    }
+  }
+  if(n.stock.gold < 0){
+    n.stock.gold = 0;
+    n.stability -= 0.02;
+    const own = armiesOf(n);
+    if(own.length){ destroyArmy(own[own.length - 1]); noteHistory(n, 'An army disbanded — the treasury ran dry'); }
+  }
+  n.stock.food = Math.min(n.stock.food, 60 + n.tiles.size * 6);
+  n.stock.wood = Math.min(n.stock.wood, 140);
+  n.stock.ore = Math.min(n.stock.ore, 140);
+  n.stock.gold = Math.min(n.stock.gold, 320);
+
+  // stability drifts toward an equilibrium set by food, faith, war and size
+  let target = 0.58 + s.stab;
+  target += clamp(n.foodFlow * 0.05, -0.2, 0.16);
+  target -= n.wars.size * 0.11;
+  target += n.allies.size * 0.03 + n.trades.size * 0.03;
+  target -= Math.max(0, n.tiles.size - (16 + n.era * 9)) * 0.012;
+  target += n.era * 0.015;
+  n.stability += (clamp(target, 0.02, 0.98) - n.stability) * 0.07;
+  n.stability = clamp(n.stability, 0, 1);
+
+  // advance an age
+  while(n.era < ERAS.length - 1 && n.science >= ERAS[n.era + 1].science){
+    n.era++;
+    noteHistory(n, 'Entered the ' + ERAS[n.era].name);
+    fireEvent({
+      kind: 'tech', icon: ERAS[n.era].icon, color: 0x8f7fdd,
+      title: n.name + ' enters the ' + ERAS[n.era].name,
+      text: 'New crafts, new buildings, new appetites.',
+      cx: n.capital.cx, cz: n.capital.cz
+    });
+  }
+}
+
+/* ============================ BUILDINGS ============================ */
+function canAfford(n, cost){
+  for(const r in cost) if((n.stock[r] || 0) < cost[r]) return false;
+  return true;
+}
+function payCost(n, cost){ for(const r in cost) n.stock[r] -= cost[r]; }
+
+function buildingScore(n, id, s){
+  const b = BUILDINGS[id];
+  if(b.era > n.era) return -1;
+  if(!canAfford(n, b.cost)) return -1;
+  let score = 1;
+  const flow = n.foodFlow || 0;
+  switch(id){
+    case 'farm':    score = 6 + clamp(-flow, 0, 6) * 2.2 + (n.stock.food < 12 ? 5 : 0); break;
+    case 'camp':    score = 4 + (n.stock.wood < 20 ? 6 : 0); break;
+    case 'hut':     score = n.pop >= n.popCap - 1 ? 7 : 1.4; break;
+    case 'granary': score = 3.5 + (n.stock.food < 22 ? 4 : 0) + (seasonIndex === 2 ? 2 : 0); break;
+    case 'house':   score = n.pop >= n.popCap - 2 ? 8 : 2; break;
+    case 'harbour': score = 6 + clamp(-flow, 0, 4) * 1.5; break;
+    case 'mine':    score = 5 + (n.stock.ore < 16 ? 4 : 0); break;
+    case 'quarry':  score = 3 + (n.stock.ore < 10 ? 3.5 : 0); break;
+    case 'shrine':  score = 3 + (n.stability < 0.5 ? 9 : 0); break;
+    case 'market':  score = 5 + (n.stock.gold < 30 ? 3 : 0); break;
+    case 'windmill':score = 5 + clamp(-flow, 0, 4) * 1.6; break;
+    case 'workshop':score = 4.5 + (n.stock.wood < 24 || n.stock.ore < 20 ? 2.5 : 0); break;
+    case 'barracks':score = n.wars.size ? 9 : 2.5; break;
+    case 'tower':   score = n.wars.size ? 6 : 1.5; break;
+    case 'library': score = 7 * n.trait.sci; break;
+    case 'forge':   score = n.wars.size ? 7 : 3.5; break;
+    case 'aqueduct':score = n.pop >= n.popCap - 2 ? 7.5 : 2.2; break;
+    case 'amphi':   score = 3 + (n.stability < 0.55 ? 8 : 0); break;
+    case 'fortress':score = n.wars.size ? 8 : 2; break;
+    case 'observatory': score = 6 * n.trait.sci; break;
+    case 'university':  score = 8 * n.trait.sci; break;
+    case 'wonder':  score = n.stability > 0.6 ? 6 : 2; break;
+  }
+  const have = n.buildings[id] || 0;
+  if(id === 'wonder') score -= have * 5;
+  else if(id === 'university' || id === 'observatory' || id === 'amphi' || id === 'fortress') score -= have * 2.2;
+  else score -= have * 0.55;
+  if(b.needs === 'farmland' && !s.farmland) return -1;
+  if(b.needs === 'forest' && !s.forest) return -1;
+  if(b.needs === 'ore' && !s.ore_t) return -1;
+  if(b.needs === 'rock' && !s.rock) return -1;
+  if(b.needs === 'coast' && !s.coast) return -1;
+  return score + Math.random() * 1.6;
+}
+
+function findBuildSite(n, needs){
+  const open = [];
+  for(const k of n.tiles){
+    const [cx, cz] = parseKey(k);
+    const t = tiles[cz][cx];
+    if(t.building) continue;
+    if(needs === 'coast'){ if(!isCoastal(cx, cz)) continue; }
+    else if(needs && t.resource !== needs) continue;
+    else if(!needs && t.type === 'mountain' && Math.random() < 0.7) continue;
+    open.push([cx, cz]);
+  }
+  if(!open.length) return null;
+  // prefer sites near the capital so towns cluster
+  open.sort((a, b) =>
+    Math.hypot(a[0] - n.capital.cx, a[1] - n.capital.cz) - Math.hypot(b[0] - n.capital.cx, b[1] - n.capital.cz));
+  return open[Math.floor(Math.pow(Math.random(), 1.7) * Math.min(open.length, 9))];
+}
+
+function chooseAndBuild(n){
+  if(buildingCount >= MAX_BUILDINGS) return;
+  const s = n.survey || surveyNation(n);
+  let bestId = null, bestScore = 0;
+  for(const id of BUILD_ORDER){
+    const sc = buildingScore(n, id, s);
+    if(sc > bestScore){ bestScore = sc; bestId = id; }
+  }
+  if(!bestId) return;
+  const b = BUILDINGS[bestId];
+  const site = findBuildSite(n, b.needs);
+  if(!site) return;
+  payCost(n, b.cost);
+  placeBuilding(n, bestId, site[0], site[1]);
+}
+
+function recolorBuilding(group, color){
+  const wall = color.clone().multiplyScalar(0.85);
+  for(const m of group.userData.walls) m.material.color.copy(wall);
+}
+
+function createBuildingMesh(nation, type, cx, cz){
+  const g = new THREE.Group();
+  const wallColor = nation.color.clone().multiplyScalar(0.85);
+  // every roof is thatch, tile or slate, nudged toward the nation's colour,
+  // so two huts of the same state still read as two different houses
+  const ROOFS = [0x7a5535, 0x5d4430, 0x8c4f38, 0x4a4f56, 0x6b5a3c];
+  const roofColor = new THREE.Color(pick(ROOFS)).lerp(nation.color, 0.12 + Math.random() * 0.14);
+  const stoneColor = new THREE.Color(0xa49b8c).lerp(nation.color, 0.1);
+  const walls = [];
+  const v = Math.random();
+  const wallMat = () => new THREE.MeshLambertMaterial({ color: wallColor.clone() });
+  const roofMat = () => new THREE.MeshLambertMaterial({ color: roofColor.clone() });
+  const plain = (hex) => new THREE.MeshLambertMaterial({ color: hex });
+  const stoneMat = () => { const m = new THREE.MeshLambertMaterial({ color: stoneColor.clone() }); walls.push({ material: m }); return m; };
+
+  function box(w, h, d, y, x, z, mat){
+    const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat || wallMat());
+    m.position.set(x || 0, y + h / 2, z || 0);
+    g.add(m); if(!mat) walls.push(m);
+    return m;
+  }
+  function cone(r, h, y, seg, mat){
+    const m = new THREE.Mesh(new THREE.ConeGeometry(r, h, seg || 4), mat || roofMat());
+    m.position.y = y + h / 2;
+    m.rotation.y = Math.PI / 4;
+    g.add(m);
+    return m;
+  }
+  function cyl(rt, rb, h, y, mat){
+    const m = new THREE.Mesh(new THREE.CylinderGeometry(rt, rb, h, 8), mat || wallMat());
+    m.position.y = y + h / 2; g.add(m); if(!mat) walls.push(m);
+    return m;
+  }
+
+  function prop(chance, fn){ if(Math.random() < chance) fn(); }
+  function barrel(x, z){ const m = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.07, 0.14, 7), plain(0x6b5236)); m.position.set(x, 0.07, z); g.add(m); }
+  function fence(z){
+    for(let i = -1; i <= 1; i++){ const m = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.16, 0.04), plain(0x7a6142)); m.position.set(i * 0.18, 0.08, z); g.add(m); }
+    const rail = new THREE.Mesh(new THREE.BoxGeometry(0.44, 0.03, 0.03), plain(0x7a6142)); rail.position.set(0, 0.13, z); g.add(rail);
+  }
+  function banner(x, y, z){
+    const p = new THREE.Mesh(new THREE.CylinderGeometry(0.014, 0.014, 0.3, 5), plain(0xcfc9bb)); p.position.set(x, y + 0.15, z); g.add(p);
+    const f = new THREE.Mesh(new THREE.PlaneGeometry(0.16, 0.1), new THREE.MeshLambertMaterial({ color: nation.color.clone(), side: THREE.DoubleSide }));
+    f.position.set(x + 0.08, y + 0.24, z); g.add(f);
+  }
+
+  switch(type){
+    case 'hut': {
+      if(v < 0.34){ const h = 0.3 + Math.random() * 0.14; cyl(0.2, 0.23, h, 0); cone(0.3, 0.26, h, 7); }
+      else if(v < 0.68){ const h = 0.34 + Math.random() * 0.16; box(0.4, h, 0.4, 0); cone(0.34, 0.24, h, 4); }
+      else { const h = 0.16; box(0.36, h, 0.44, 0); cone(0.36, 0.42, h, 3); }
+      prop(0.35, () => barrel(0.26, 0.22));
+      break;
+    }
+    case 'house': {
+      const h = 0.62 + Math.random() * 0.4;
+      if(v < 0.5){ box(0.5, h, 0.46, 0); cone(0.42, 0.34, h, 4); }
+      else { box(0.62, h * 0.82, 0.4, 0); box(0.3, h, 0.3, 0, -0.2, 0.06); cone(0.5, 0.3, h * 0.82, 4); }
+      prop(0.45, () => box(0.07, 0.22, 0.07, h, 0.14, 0.12, plain(0x584435)));
+      prop(0.3, () => fence(0.36));
+      break;
+    }
+    case 'farm': {
+      box(0.74, 0.05, 0.74, 0, 0, 0, plain(v < 0.5 ? 0x8c9a46 : 0xa8993f));
+      for(let i = -1; i <= 1; i++) box(0.62, 0.035, 0.07, 0.05, 0, i * 0.2, plain(0x6d7c34));
+      box(0.22, 0.24, 0.22, 0.05, -0.2, -0.2); cone(0.19, 0.17, 0.29, 4);
+      prop(0.4, () => barrel(0.24, -0.24));
+      break;
+    }
+    case 'granary': {
+      cyl(0.19, 0.22, 0.46, 0); cone(0.3, 0.22, 0.46, 9);
+      box(0.1, 0.2, 0.1, 0, 0.22, 0.18, plain(0x7a6142));
+      prop(0.5, () => barrel(-0.26, 0.2));
+      break;
+    }
+    case 'camp': {
+      box(0.34, 0.2, 0.34, 0); cone(0.3, 0.3, 0.2, 5);
+      for(let i = 0; i < 3; i++) box(0.07, 0.07, 0.46, 0.02 + i * 0.075, 0.28, (i - 1) * 0.03, plain(0x6b5236));
+      break;
+    }
+    case 'quarry': {
+      box(0.62, 0.08, 0.62, 0, 0, 0, plain(0x6f6a63));
+      box(0.2, 0.2, 0.2, 0.08, 0.14, 0.12);
+      for(let i = 0; i < 3; i++){
+        const r = new THREE.Mesh(new THREE.DodecahedronGeometry(0.07, 0), plain(0x8a857d));
+        r.position.set((Math.random() - 0.5) * 0.44, 0.12, (Math.random() - 0.5) * 0.44); g.add(r);
+      }
+      break;
+    }
+    case 'mine': {
+      box(0.36, 0.26, 0.36, 0); cone(0.3, 0.2, 0.26, 4);
+      const c = new THREE.Mesh(new THREE.ConeGeometry(0.08, 0.2, 4), plain(0x86c0dc));
+      c.position.set(0.24, 0.1, 0.2); g.add(c);
+      box(0.06, 0.34, 0.06, 0, -0.22, -0.2, plain(0x584435));
+      break;
+    }
+    case 'harbour': {
+      box(0.58, 0.07, 0.24, 0, 0, 0.2, plain(0x7a6142));
+      for(const x of [-0.22, 0, 0.22]) box(0.05, 0.16, 0.05, -0.1, x, 0.3, plain(0x584435));
+      box(0.3, 0.28, 0.3, 0, -0.14, -0.16); cone(0.26, 0.2, 0.28, 4);
+      const mast = new THREE.Mesh(new THREE.CylinderGeometry(0.014, 0.014, 0.42, 5), plain(0xcfc9bb));
+      mast.position.set(0.16, 0.28, 0.2); g.add(mast);
+      const sail = new THREE.Mesh(new THREE.PlaneGeometry(0.2, 0.26), new THREE.MeshLambertMaterial({ color: 0xe8e0cd, side: THREE.DoubleSide }));
+      sail.position.set(0.16, 0.34, 0.2); g.add(sail);
+      break;
+    }
+    case 'shrine': {
+      cyl(0.17, 0.2, 0.42, 0);
+      cone(0.3, 0.26, 0.42, 8, plain(0xd7a13c));
+      prop(0.5, () => { for(const x of [-0.26, 0.26]) box(0.05, 0.3, 0.05, 0, x, 0.18, plain(0xb08a4c)); });
+      break;
+    }
+    case 'windmill': {
+      cyl(0.16, 0.22, 0.66, 0);
+      cone(0.24, 0.18, 0.66, 8);
+      const hub = new THREE.Group();
+      for(let i = 0; i < 4; i++){
+        const b = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.42, 0.1), plain(0xe0d7c2));
+        b.position.y = 0.21;
+        const holder = new THREE.Object3D(); holder.rotation.z = i * Math.PI / 2;
+        holder.add(b); hub.add(holder);
+      }
+      hub.position.set(0, 0.6, 0.24);
+      g.add(hub); g.userData.spin = hub;
+      break;
+    }
+    case 'workshop': {
+      box(0.56, 0.34, 0.44, 0);
+      box(0.6, 0.06, 0.5, 0.34, 0, 0, roofMat());
+      box(0.08, 0.26, 0.08, 0.4, 0.18, 0.12, plain(0x4a4038));
+      prop(0.6, () => barrel(-0.3, 0.22));
+      break;
+    }
+    case 'barracks': {
+      box(0.66, 0.42, 0.34, 0); cone(0.38, 0.2, 0.42, 4);
+      banner(0.26, 0.42, 0);
+      prop(0.5, () => fence(-0.3));
+      break;
+    }
+    case 'market': {
+      box(0.6, 0.14, 0.6, 0);
+      box(0.72, 0.05, 0.72, 0.38, 0, 0, plain(v < 0.5 ? 0xcf8b4a : 0xb85f57));
+      for(const [x, z] of [[-0.28,-0.28],[0.28,-0.28],[-0.28,0.28],[0.28,0.28]]) box(0.05, 0.38, 0.05, 0, x, z);
+      barrel(0.14, 0.12); prop(0.6, () => barrel(-0.16, -0.1));
+      break;
+    }
+    case 'tower': {
+      const h = 1.15 + Math.random() * 0.7;
+      cyl(0.15, 0.19, h, 0);
+      if(v < 0.5) cone(0.26, 0.3, h, 8);
+      else { cyl(0.23, 0.23, 0.1, h); banner(0, h + 0.1, 0); }
+      break;
+    }
+    case 'library': {
+      box(0.66, 0.5, 0.5, 0);
+      box(0.76, 0.06, 0.6, 0.5, 0, 0, plain(0xe0d7c2));
+      for(const x of [-0.26, 0, 0.26]) cyl(0.045, 0.045, 0.5, 0, plain(0xe6ddc9)).position.x = x;
+      break;
+    }
+    case 'forge': {
+      box(0.5, 0.34, 0.5, 0);
+      cyl(0.09, 0.12, 0.6, 0.34, plain(0x4a4038));
+      const fire = new THREE.Mesh(new THREE.SphereGeometry(0.09, 8, 6), new THREE.MeshBasicMaterial({ color: 0xff8a3d }));
+      fire.position.set(0, 0.2, 0.26); g.add(fire); g.userData.fire = fire;
+      break;
+    }
+    case 'aqueduct': {
+      for(let i = -1; i <= 1; i++){
+        box(0.11, 0.46, 0.11, 0, i * 0.3, 0, stoneMat());
+        const arch = new THREE.Mesh(new THREE.TorusGeometry(0.15, 0.035, 6, 12, Math.PI), stoneMat());
+        arch.position.set(i * 0.3 + 0.15, 0.46, 0); arch.rotation.z = 0; g.add(arch);
+      }
+      box(0.86, 0.1, 0.18, 0.52, 0, 0, stoneMat());
+      const water = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.03, 0.09), plain(0x4d9cc4));
+      water.position.set(0, 0.63, 0); g.add(water);
+      break;
+    }
+    case 'amphi': {
+      cyl(0.42, 0.46, 0.14, 0, stoneMat());
+      cyl(0.36, 0.4, 0.26, 0.14, stoneMat());
+      const bowl = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.3, 0.06, 14), plain(0xd9cfb8));
+      bowl.position.y = 0.4; g.add(bowl);
+      for(let i = 0; i < 6; i++){
+        const c = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.22, 6), plain(0xe6ddc9));
+        const a = i / 6 * Math.PI * 2;
+        c.position.set(Math.cos(a) * 0.33, 0.51, Math.sin(a) * 0.33); g.add(c);
+      }
+      break;
+    }
+    case 'fortress': {
+      box(0.78, 0.4, 0.78, 0, 0, 0, stoneMat());
+      for(const [x, z] of [[-0.34,-0.34],[0.34,-0.34],[-0.34,0.34],[0.34,0.34]]){
+        const t = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.13, 0.66, 8), stoneMat());
+        t.position.set(x, 0.33, z); g.add(t); walls.push(t);
+        const cap = new THREE.Mesh(new THREE.ConeGeometry(0.16, 0.18, 8), roofMat());
+        cap.position.set(x, 0.75, z); g.add(cap);
+      }
+      box(0.3, 0.56, 0.3, 0, 0, 0, stoneMat());
+      banner(0, 0.56, 0);
+      break;
+    }
+    case 'observatory': {
+      cyl(0.2, 0.26, 0.6, 0, stoneMat());
+      const dome = new THREE.Mesh(new THREE.SphereGeometry(0.23, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2), plain(0xbfc7d2));
+      dome.position.y = 0.6; g.add(dome);
+      const scope = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.05, 0.36, 7), plain(0x4a4038));
+      scope.position.set(0.08, 0.74, 0.04); scope.rotation.z = -0.7; g.add(scope);
+      break;
+    }
+    case 'university': {
+      box(0.8, 0.42, 0.44, 0, 0, 0, stoneMat());
+      box(0.88, 0.06, 0.52, 0.42, 0, 0, plain(0xe0d7c2));
+      for(const x of [-0.3, -0.1, 0.1, 0.3]) cyl(0.04, 0.04, 0.42, 0, plain(0xe6ddc9)).position.set(x, 0.21, 0.24);
+      cyl(0.12, 0.14, 0.4, 0.48, stoneMat()).position.set(0, 0.68, 0);
+      cone(0.2, 0.26, 0.88, 8, plain(0xd7a13c));
+      break;
+    }
+    case 'wonder': {
+      cyl(0.34, 0.44, 0.24, 0); cyl(0.26, 0.34, 0.5, 0.24);
+      cone(0.44, 0.4, 0.74, 8, plain(0xd7a13c));
+      const orb = new THREE.Mesh(new THREE.SphereGeometry(0.1, 10, 8), new THREE.MeshBasicMaterial({ color: 0xffd98a }));
+      orb.position.y = 1.22; g.add(orb); g.userData.orb = orb;
+      break;
+    }
+    default: { box(0.4, 0.3, 0.4, 0); }
+  }
+
+  g.position.set(cellX(cx), tiles[cz][cx].y, cellZ(cz));
+  g.rotation.y = (Math.random() - 0.5) * 0.5;
+  g.userData.walls = walls;
+  g.userData.type = type;
+  g.visible = options.buildings;
+  return g;
+}
+
+function placeBuilding(n, type, cx, cz){
+  const t = tiles[cz][cx];
+  if(t.building) return;
+  t.building = type;
+  buildingCount++;
+  n.buildings[type] = (n.buildings[type] || 0) + 1;
+  const mesh = createBuildingMesh(n, type, cx, cz);
+  scene.add(mesh);
+  t.buildingMesh = mesh;
+  if(mesh.userData.spin) spinners.push(mesh.userData.spin);
+  spawnFloatIcon(cx, cz, BUILDINGS[type].icon, 0xd7a13c, 0.75);
+  if(type === 'wonder' || type === 'library'){
+    fireEvent({ kind:'boon', icon: BUILDINGS[type].icon, color: 0xd7a13c,
+      title: n.name + ' completes a ' + BUILDINGS[type].name,
+      text: BUILDINGS[type].desc, cx, cz, quiet: type !== 'wonder' });
+  }
+}
+
+function destroyBuilding(cx, cz){
+  const t = tiles[cz][cx];
+  if(!t.building) return null;
+  const type = t.building;
+  if(t.owner){
+    const n = nationsById.get(t.owner);
+    if(n) n.buildings[type] = Math.max(0, (n.buildings[type] || 0) - 1);
+  }
+  disposeObj(t.buildingMesh);
+  t.buildingMesh = null; t.building = null;
+  buildingCount--;
+  return type;
+}
+
+/* ============================ ARMIES ============================ */
+function armiesOf(n){ return armies.filter(a => a.nationId === n.id); }
+
+function armyStrengthFor(n){
+  const barracks = n.buildings.barracks || 0;
+  return (9 + n.tiles.size * 0.35 + barracks * 5 + n.pop * 0.5)
+    * n.trait.power * ERAS[n.era].power * (1 + (n.armyBonus || 0));
+}
+
+function raiseArmy(n){
+  if(armies.length >= MAX_ARMIES) return;
+  if(armiesOf(n).length >= 1 + Math.floor(n.tiles.size / 12)) return;
+  if(n.pop < 3 || n.stock.food < 12 || n.stock.gold < 5) return;
+  n.stock.food -= 10; n.stock.gold -= 5;
+  killCitizens(n, 1);
+  const { cx, cz } = n.capital;
+  const mesh = new THREE.Group();
+  const body = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.24, 0.62, 5), new THREE.MeshLambertMaterial({ color: n.color.clone() }));
+  body.position.y = 0.31; mesh.add(body);
+  const ring = new THREE.Mesh(new THREE.RingGeometry(0.2, 0.3, 14), new THREE.MeshBasicMaterial({ color: n.color.clone(), transparent: true, opacity: 0.65, side: THREE.DoubleSide }));
+  ring.rotation.x = -Math.PI / 2; ring.position.y = 0.03; mesh.add(ring);
+  const blade = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.3, 0.09), new THREE.MeshLambertMaterial({ color: 0xd9d3c4 }));
+  blade.position.set(0.15, 0.42, 0); mesh.add(blade);
+  mesh.position.set(cellX(cx), tiles[cz][cx].y, cellZ(cz));
+  mesh.visible = options.armies;
+  scene.add(mesh);
+  const army = {
+    id: nextArmyId++, nationId: n.id, cx, cz, strength: armyStrengthFor(n),
+    prevX: cellX(cx), prevZ: cellZ(cz), prevY: tiles[cz][cx].y,
+    nextX: cellX(cx), nextZ: cellZ(cz), nextY: tiles[cz][cx].y,
+    mesh, target: null, retarget: 0
+  };
+  armies.push(army);
+  spawnFloatIcon(cx, cz, '🗡️', n.color.getHex(), 0.9);
+  return army;
+}
+
+function destroyArmy(army){
+  disposeObj(army.mesh);
+  const i = armies.indexOf(army);
+  if(i >= 0) armies.splice(i, 1);
+}
+
+function findArmyTarget(army){
+  const n = nationsById.get(army.nationId);
+  if(!n || !n.wars.size) return null;
+  let best = null, bestD = Infinity;
+  for(const enemyId of n.wars.keys()){
+    const e = nationsById.get(enemyId);
+    if(!e || e.eliminated) continue;
+    for(const k of e.tiles){
+      const [cx, cz] = parseKey(k);
+      const d = Math.hypot(cx - army.cx, cz - army.cz);
+      if(d < bestD){ bestD = d; best = { cx, cz }; }
+    }
+  }
+  return best;
+}
+
+function stepArmy(army){
+  const n = nationsById.get(army.nationId);
+  if(!n || n.eliminated){ destroyArmy(army); return; }
+  army.prevX = army.nextX; army.prevZ = army.nextZ; army.prevY = army.nextY;
+
+  if(!n.wars.size){
+    // war is over — march home and stand down
+    const d = Math.hypot(army.cx - n.capital.cx, army.cz - n.capital.cz);
+    if(d < 1.5){ destroyArmy(army); return; }
+    army.target = { cx: n.capital.cx, cz: n.capital.cz };
+  } else if(!army.target || army.retarget-- <= 0 || tiles[army.target.cz][army.target.cx].owner === army.nationId){
+    army.target = findArmyTarget(army);
+    army.retarget = 8;
+  }
+  if(!army.target){ destroyArmy(army); return; }
+
+  const options_ = neighborsOf(army.cx, army.cz).filter(([x, z]) => isLand(x, z));
+  if(!options_.length) return;
+  options_.sort((a, b) =>
+    Math.hypot(a[0] - army.target.cx, a[1] - army.target.cz) - Math.hypot(b[0] - army.target.cx, b[1] - army.target.cz));
+  const [nx, nz] = Math.random() < 0.82 ? options_[0] : pick(options_);
+  army.cx = nx; army.cz = nz;
+  army.nextX = cellX(nx); army.nextZ = cellZ(nz); army.nextY = tiles[nz][nx].y;
+  const dx = army.nextX - army.prevX, dz = army.nextZ - army.prevZ;
+  if(dx || dz) army.mesh.rotation.y = Math.atan2(dx, dz);
+
+  // meet an enemy army?
+  for(const other of armies){
+    if(other === army || other.nationId === army.nationId) continue;
+    if(other.cx === army.cx && other.cz === army.cz && n.wars.has(other.nationId)){
+      clashArmies(army, other); return;
+    }
+  }
+  const t = tiles[nz][nx];
+  if(t.owner && t.owner !== army.nationId && n.wars.has(t.owner)) assaultTile(army, nx, nz);
+}
+
+function clashArmies(a, b){
+  const na = nationsById.get(a.nationId), nb = nationsById.get(b.nationId);
+  if(!na || !nb) return;
+  const pa = a.strength * (0.8 + Math.random() * 0.4);
+  const pb = b.strength * (0.8 + Math.random() * 0.4);
+  const winner = pa >= pb ? a : b, loser = pa >= pb ? b : a;
+  const wn = nationsById.get(winner.nationId), ln = nationsById.get(loser.nationId);
+  winner.strength *= 0.55 + Math.random() * 0.2;
+  spawnGroundRing(a.cx, a.cz, wn.color.getHex(), 1.5);
+  spawnFloatIcon(a.cx, a.cz, '⚔️', 0xd9584a, 1.35);
+  destroyArmy(loser);
+  killCitizens(ln, 1);
+  fireEvent({
+    kind: 'war', icon: '⚔️', color: 0xd9584a,
+    title: 'Armies clash in the field',
+    text: `<b>${wn.name}</b> destroyed a <b>${ln.name}</b> army.`,
+    cx: a.cx, cz: a.cz, noMark: true
+  });
+}
+
+function tileDefence(nation, cx, cz){
+  let d = 6 + nation.tiles.size * 0.22 + nation.pop * 0.4;
+  const t = tiles[cz][cx];
+  if(t.building && BUILDINGS[t.building].defence) d *= 1 + BUILDINGS[t.building].defence * 2.2;
+  if(t.type === 'mountain') d *= 1.35;
+  if(cx === nation.capital.cx && cz === nation.capital.cz) d *= 1.4;
+  for(const army of armies) if(army.nationId === nation.id && army.cx === cx && army.cz === cz) d += army.strength * 0.7;
+  return d * nation.trait.power * ERAS[nation.era].power * (1 + nation.defenceBonus * 0.5);
+}
+
+function assaultTile(army, cx, cz){
+  const attacker = nationsById.get(army.nationId);
+  const defender = nationsById.get(tiles[cz][cx].owner);
+  if(!attacker || !defender) return;
+  const atk = army.strength * (0.85 + Math.random() * 0.3);
+  const def = tileDefence(defender, cx, cz) * (0.85 + Math.random() * 0.3);
+  const win = atk > def;
+  spawnGroundRing(cx, cz, (win ? attacker.color : defender.color).getHex(), 1.4);
+  spawnFloatIcon(cx, cz, win ? '🔥' : '🛡️', win ? 0xd9584a : 0x4fb9a1, 1.2);
+  if(win){
+    army.strength *= 0.72;
+    const razed = Math.random() < 0.3 ? destroyBuilding(cx, cz) : null;
+    claimTile(attacker, cx, cz, true);
+    killCitizens(defender, 1);
+    attacker.warScore = (attacker.warScore || 0) + 1;
+    fireEvent({
+      kind: 'war', icon: '⚔️', color: attacker.color.getHex(),
+      title: attacker.name + ' takes ground',
+      text: `A tile of <b>${defender.name}</b> falls${razed ? ', and its ' + BUILDINGS[razed].name.toLowerCase() + ' burns' : ''}.`,
+      cx, cz, noMark: true, quiet: true
+    });
+  } else {
+    army.strength *= 0.6;
+    killCitizens(attacker, 1);
+    if(army.strength < 6){
+      destroyArmy(army);
+      fireEvent({ kind:'war', icon:'🛡️', color: defender.color.getHex(),
+        title: defender.name + ' holds the line',
+        text: `An army of <b>${attacker.name}</b> was broken and scattered.`, cx, cz, noMark: true, quiet: true });
+    }
+  }
+}
+
+/* ============================ DIPLOMACY ============================ */
+function neighborNationIds(n){
+  const ids = new Set();
+  for(const k of n.tiles){
+    const [cx, cz] = parseKey(k);
+    for(const [nx, nz] of neighborsOf(cx, cz)){
+      if(!inBounds(nx, nz)) continue;
+      const o = tiles[nz][nx].owner;
+      if(o && o !== n.id) ids.add(o);
+    }
+  }
+  return ids;
+}
+
+function declareWar(a, b, cause){
+  if(a.wars.has(b.id)) return;
+  a.wars.set(b.id, { startDay: day });
+  b.wars.set(a.id, { startDay: day });
+  a.allies.delete(b.id); b.allies.delete(a.id);
+  a.trades.delete(b.id); b.trades.delete(a.id);
+  noteHistory(a, 'Declared war on ' + b.name);
+  noteHistory(b, 'Attacked by ' + a.name);
+  fireEvent({
+    kind: 'war', icon: '⚔️', color: 0xd9584a, major: true,
+    title: 'War: ' + a.name + ' vs ' + b.name,
+    text: cause || `<b>${a.name}</b> marches on <b>${b.name}</b>.`,
+    cx: b.capital.cx, cz: b.capital.cz
+  });
+  // allies are drawn in
+  for(const allyId of Array.from(a.allies)){
+    const ally = nationsById.get(allyId);
+    if(ally && !ally.eliminated && !ally.wars.has(b.id) && Math.random() < 0.55){
+      ally.wars.set(b.id, { startDay: day }); b.wars.set(ally.id, { startDay: day });
+      fireEvent({ kind:'war', icon:'🤝', color:0xd9584a,
+        title: ally.name + ' honours its alliance',
+        text: `It joins <b>${a.name}</b> against <b>${b.name}</b>.`,
+        cx: ally.capital.cx, cz: ally.capital.cz, quiet: true });
+    }
+  }
+}
+
+function makePeace(a, b){
+  if(!a || !b || !a.wars.has(b.id)) return;
+  const dur = day - (a.wars.get(b.id).startDay || day);
+  a.wars.delete(b.id); b.wars.delete(a.id);
+  noteHistory(a, 'Peace with ' + b.name);
+  noteHistory(b, 'Peace with ' + a.name);
+  fireEvent({
+    kind: 'peace', icon: '🕊️', color: 0x4fb9a1,
+    title: 'Peace between ' + a.name + ' and ' + b.name,
+    text: `The war lasted ${dur} days.`,
+    cx: a.capital.cx, cz: a.capital.cz
+  });
+}
+
+function formAlliance(a, b){
+  a.allies.add(b.id); b.allies.add(a.id);
+  fireEvent({
+    kind: 'peace', icon: '🤝', color: 0x4fb9a1,
+    title: 'An alliance is sworn',
+    text: `<b>${a.name}</b> and <b>${b.name}</b> will answer each other's wars.`,
+    cx: b.capital.cx, cz: b.capital.cz
+  });
+}
+
+function formTrade(a, b){
+  a.trades.add(b.id); b.trades.add(a.id);
+  fireEvent({
+    kind: 'boon', icon: '🏺', color: 0xd7a13c,
+    title: 'A trade route opens',
+    text: `Caravans run between <b>${a.name}</b> and <b>${b.name}</b>.`,
+    cx: a.capital.cx, cz: a.capital.cz, quiet: true
+  });
+}
+
+function considerDiplomacy(n){
+  if(--n.cooldowns.diplo > 0) return;
+  n.cooldowns.diplo = 6 + Math.floor(Math.random() * 8);
+  const neighbors = neighborNationIds(n);
+
+  let acted = false;
+  for(const oid of neighbors){
+    if(n.wars.has(oid) || n.allies.has(oid)) continue;
+    const o = nationsById.get(oid);
+    if(!o || o.eliminated) continue;
+    const mine = n.tiles.size + n.pop * 1.4 + armiesOf(n).length * 6;
+    const theirs = o.tiles.size + o.pop * 1.4 + armiesOf(o).length * 6;
+    const hunger = clamp(mine / (theirs + 1), 0.4, 2.0);
+    const chance = 0.2 * n.trait.aggression * hunger * (n.stability < 0.4 ? 1.5 : 1);
+    if(Math.random() < chance){
+      declareWar(n, o, `<b>${n.name}</b> claims the borderland of <b>${o.name}</b>.`);
+      acted = true; break;
+    }
+  }
+  if(!acted){
+    for(const oid of neighbors){
+      if(n.wars.has(oid) || n.allies.has(oid)) continue;
+      const o = nationsById.get(oid);
+      if(!o || o.eliminated) continue;
+      if(Math.random() < 0.05 * n.trait.alliance * o.trait.alliance){ formAlliance(n, o); acted = true; break; }
+      if(!n.trades.has(oid) && Math.random() < 0.07 * n.trait.alliance){ formTrade(n, o); acted = true; break; }
+    }
+  }
+
+  for(const eid of Array.from(n.wars.keys())){
+    const info = n.wars.get(eid);
+    const e = nationsById.get(eid);
+    if(!e || e.eliminated){ n.wars.delete(eid); continue; }
+    const dur = day - info.startDay;
+    const weary = clamp(dur * 0.013, 0, 0.9) * n.trait.weariness * (n.stability < 0.35 ? 1.6 : 1);
+    if(Math.random() < weary * 0.16) makePeace(n, e);
+  }
+
+  for(const aid of Array.from(n.allies)){
+    if(Math.random() < 0.004){
+      const ally = nationsById.get(aid);
+      if(!ally) continue;
+      n.allies.delete(aid); ally.allies.delete(n.id);
+      fireEvent({ kind:'war', icon:'💔', color:0xc07a33,
+        title:'An alliance dissolves',
+        text:`<b>${n.name}</b> and <b>${ally.name}</b> part ways.`,
+        cx:n.capital.cx, cz:n.capital.cz, quiet:true });
+    }
+  }
+}
+
+/* ============================ REBELLION ============================ */
+function considerRebellion(n){
+  if(n.stability > 0.2 || n.tiles.size < 9) return;
+  if(Math.random() > 0.06) return;
+  const all = Array.from(n.tiles).map(parseKey);
+  all.sort((a, b) =>
+    Math.hypot(b[0] - n.capital.cx, b[1] - n.capital.cz) - Math.hypot(a[0] - n.capital.cx, a[1] - n.capital.cz));
+  const take = all.slice(0, Math.max(3, Math.floor(all.length * 0.42)));
+  const seat = take[0];
+
+  const rebel = {
+    id: nextNationId, name: makeNationName(), color: makeNationColor(nextNationId),
+    trait: pick(TRAITS), capital: { cx: seat[0], cz: seat[1] },
+    tiles: new Set(), wars: new Map(), allies: new Set(), trades: new Set(),
+    stock: { food: 10, wood: 10, ore: 4, gold: 4 },
+    science: n.science * 0.5, era: n.era, stability: 0.6, pop: 0, popCap: 4,
+    buildings: {}, armyBonus: 0, defenceBonus: 0,
+    founded: day, eliminated: false, log: [],
+    cooldowns: { expand: 3, grow: 2, build: 4, diplo: 4, army: 4 },
+    peak: { tiles: take.length, pop: 0 }
+  };
+  nextNationId++;
+  nations.push(rebel);
+  nationsById.set(rebel.id, rebel);
+  rebel.capitalMesh = createCapitalMarker(rebel, seat[0], seat[1]);
+  scene.add(rebel.capitalMesh);
+  for(const [cx, cz] of take) claimTile(rebel, cx, cz);
+  n.stability = 0.5;
+  declareWar(rebel, n, `The provinces of <b>${n.name}</b> have risen.`);
+  noteHistory(n, 'Civil war — ' + rebel.name + ' broke away');
+  fireEvent({
+    kind: 'war', icon: '🔥', color: 0xd9584a, major: true,
+    title: 'Rebellion! ' + rebel.name + ' breaks away',
+    text: `${take.length} tiles secede from <b>${n.name}</b>.`,
+    cx: seat[0], cz: seat[1]
+  });
+}
+
+/* ============================ WORLD EVENTS ============================ */
+const WORLD_EVENTS = [
+  { id:'plague', w: 10, run(n){
+      const lost = killCitizens(n, 1 + Math.floor(Math.random() * 3));
+      if(!lost) return false;
+      n.stability -= 0.12;
+      fireEvent({ kind:'disaster', icon:'☠️', color:0x9c6fb0, major:true,
+        title:'Plague in ' + n.name,
+        text:`${lost} ${lost === 1 ? 'life is' : 'lives are'} lost to fever.`,
+        cx:n.capital.cx, cz:n.capital.cz });
+      return true; } },
+  { id:'harvest', w: 12, run(n){
+      n.stock.food += 25; n.stability += 0.06;
+      const k = Array.from(n.tiles); if(!k.length) return false;
+      const [cx, cz] = parseKey(pick(k));
+      spawnAgent(cx, cz, n.id);
+      fireEvent({ kind:'boon', icon:'🌾', color:0xd7a13c,
+        title:'A bountiful harvest in ' + n.name,
+        text:'Full granaries, and new mouths to fill them.', cx, cz });
+      return true; } },
+  { id:'quake', w: 9, run(n){
+      const withB = Array.from(n.tiles).map(parseKey).filter(([cx, cz]) => tiles[cz][cx].building);
+      if(!withB.length) return false;
+      const hit = withB.slice(0, 1 + Math.floor(Math.random() * 2));
+      for(const [cx, cz] of hit){ destroyBuilding(cx, cz); spawnGroundRing(cx, cz, 0xc07a33, 1.6); }
+      n.stability -= 0.08;
+      fireEvent({ kind:'disaster', icon:'🌋', color:0xc07a33, major:true,
+        title:'Earthquake shakes ' + n.name,
+        text:`${hit.length} building${hit.length > 1 ? 's are' : ' is'} thrown down.`,
+        cx:hit[0][0], cz:hit[0][1] });
+      shake = Math.max(shake, 0.9);
+      return true; } },
+  { id:'goldrush', w: 8, run(n){
+      n.stock.gold += 60; n.stock.ore += 25;
+      fireEvent({ kind:'boon', icon:'💰', color:0xd7a13c,
+        title:'Gold rush in ' + n.name,
+        text:'A rich seam turns up under the hills.', cx:n.capital.cx, cz:n.capital.cz });
+      return true; } },
+  { id:'festival', w: 8, run(n){
+      if(n.stability > 0.85) return false;
+      n.stability = clamp(n.stability + 0.2, 0, 1);
+      fireEvent({ kind:'boon', icon:'🎊', color:0x4fb9a1,
+        title:'A festival in ' + n.name,
+        text:'Grievances forgotten, at least for now.', cx:n.capital.cx, cz:n.capital.cz });
+      return true; } },
+  { id:'migrants', w: 9, run(n){
+      let added = 0;
+      const k = Array.from(n.tiles); if(!k.length) return false;
+      for(let i = 0; i < 3; i++){ const [cx, cz] = parseKey(pick(k)); if(spawnAgent(cx, cz, n.id)) added++; }
+      if(!added) return false;
+      fireEvent({ kind:'boon', icon:'👣', color:0x4fb9a1,
+        title:'Migrants reach ' + n.name,
+        text:`${added} newcomers settle inside its borders.`, cx:n.capital.cx, cz:n.capital.cz, quiet:true });
+      return true; } },
+  { id:'discovery', w: 7, run(n){
+      n.science += 60 + n.era * 40;
+      fireEvent({ kind:'tech', icon:'💡', color:0x8f7fdd,
+        title:'A discovery in ' + n.name,
+        text:'Someone writes down what everyone already suspected.', cx:n.capital.cx, cz:n.capital.cz });
+      return true; } },
+  { id:'storm', w: 8, run(n){
+      const k = Array.from(n.tiles); if(!k.length) return false;
+      const [cx, cz] = parseKey(pick(k));
+      n.stock.food = Math.max(0, n.stock.food - 18);
+      spawnGroundRing(cx, cz, 0x6fa8d6, 1.8);
+      fireEvent({ kind:'disaster', icon:'⛈️', color:0x6fa8d6,
+        title:'Storms batter ' + n.name,
+        text:'Fields flooded and stores spoiled.', cx, cz });
+      return true; } },
+  { id:'wanderers', w: 7, run(){
+      let added = 0;
+      for(let i = 0; i < 5; i++){ const c = randomLandCell(); if(spawnAgent(c.cx, c.cz, null)) added++; }
+      if(!added) return false;
+      const c = randomLandCell();
+      fireEvent({ kind:'found', icon:'🧭', color:0x8d8a7e,
+        title:'Wanderers appear',
+        text:`${added} unaffiliated settlers cross into the world.`, cx:c.cx, cz:c.cz, quiet:true });
+      return true; } }
+];
+
+function triggerWorldEvent(){
+  const active = nations.filter(n => !n.eliminated);
+  const pool = WORLD_EVENTS.filter(e => active.length || e.id === 'wanderers');
+  let total = 0; for(const e of pool) total += e.w;
+  for(let attempt = 0; attempt < 6; attempt++){
+    let r = Math.random() * total;
+    let chosen = pool[0];
+    for(const e of pool){ r -= e.w; if(r <= 0){ chosen = e; break; } }
+    const n = active.length ? pick(active) : null;
+    if(chosen.run(n)) return;
+  }
+}
+
+/* ============================ DIVINE POWERS ============================ */
+const POWERS = [
+  { id:'settlers', name:'Send Settlers', icon:'👣', cost:10, color:0x4fb9a1,
+    desc:'Four new wanderers step onto the tile. They may found a state.' },
+  { id:'bless',    name:'Bless the Land', icon:'🌟', cost:18, color:0xd7a13c,
+    desc:'Fills the granaries and calms the people of whoever holds it.' },
+  { id:'raise',    name:'Raise the Earth', icon:'⛰️', cost:24, color:0x8d8a7e,
+    desc:'Lifts the ground into hills — and new land out of shallow water.' },
+  { id:'sink',     name:'Sink the Earth', icon:'🌊', cost:24, color:0x6fa8d6,
+    desc:'Drops the ground. Anything below the waterline is lost to the sea.' },
+  { id:'meteor',   name:'Call a Meteor', icon:'☄️', cost:38, color:0xd9584a,
+    desc:'A crater, a shockwave, and nothing left standing nearby.' },
+  { id:'plague',   name:'Send a Plague', icon:'☠️', cost:30, color:0x9c6fb0,
+    desc:'Culls the people of the state that holds this ground.' },
+  { id:'peace',    name:'Impose Peace', icon:'🕊️', cost:34, color:0x4fb9a1,
+    desc:'Ends every war the holder of this tile is fighting.' },
+  { id:'uprising', name:'Stir Unrest', icon:'🔥', cost:28, color:0xc07a33,
+    desc:'Drives a state toward rebellion and civil war.' }
+];
+
+function applyPower(power, cx, cz){
+  const t = tiles[cz][cx];
+  const owner = t.owner ? nationsById.get(t.owner) : null;
+  switch(power.id){
+    case 'settlers': {
+      let added = 0;
+      for(let i = 0; i < 4; i++){
+        const cand = [[cx, cz]].concat(neighborsOf(cx, cz)).filter(([x, z]) => isLand(x, z));
+        if(!cand.length) break;
+        const [sx, sz] = pick(cand);
+        if(spawnAgent(sx, sz, null)) added++;
+      }
+      if(!added) return 'There is no dry land here.';
+      fireEvent({ kind:'divine', icon:'👣', color:power.color, title:'Settlers answer the call',
+        text:`${added} wanderers arrive out of nowhere.`, cx, cz });
+      return null;
+    }
+    case 'bless': {
+      if(owner){
+        owner.stock.food += 45; owner.stock.wood += 30; owner.stock.gold += 25;
+        owner.stability = clamp(owner.stability + 0.3, 0, 1);
+        spawnAgent(cx, cz, owner.id);
+        noteHistory(owner, 'Blessed from above');
+      }
+      for(let i = 0; i < 3; i++) spawnGroundRing(cx, cz, 0xd7a13c, 1.2 + i * 0.5);
+      fireEvent({ kind:'divine', icon:'🌟', color:power.color, title:'The land is blessed',
+        text: owner ? `<b>${owner.name}</b> receives abundance.` : 'Wildflowers, for nobody in particular.',
+        cx, cz, major:true });
+      return null;
+    }
+    case 'raise': {
+      reshapeTerrain(cx, cz, 0.16, 3);
+      spawnGroundRing(cx, cz, 0x8d8a7e, 2.6);
+      fireEvent({ kind:'divine', icon:'⛰️', color:power.color, title:'The earth rises',
+        text:'Hills push up where there were none.', cx, cz, major:true });
+      return null;
+    }
+    case 'sink': {
+      reshapeTerrain(cx, cz, -0.16, 3);
+      spawnGroundRing(cx, cz, 0x6fa8d6, 2.6);
+      fireEvent({ kind:'divine', icon:'🌊', color:power.color, title:'The earth sinks',
+        text:'The sea takes what it is given.', cx, cz, major:true });
+      return null;
+    }
+    case 'meteor': {
+      let razed = 0, killed = 0;
+      for(let dz = -1; dz <= 1; dz++) for(let dx = -1; dx <= 1; dx++){
+        const x = cx + dx, z = cz + dz;
+        if(!inBounds(x, z)) continue;
+        if(destroyBuilding(x, z)) razed++;
+        for(const a of agents.slice()) if(a.cx === x && a.cz === z){ removeAgent(a); killed++; }
+      }
+      reshapeTerrain(cx, cz, -0.1, 2);
+      for(let i = 0; i < 4; i++) spawnGroundRing(cx, cz, 0xff8a3d, 1.4 + i * 0.9);
+      spawnFloatIcon(cx, cz, '☄️', 0xd9584a, 2.2);
+      shake = 1.6;
+      if(owner) owner.stability -= 0.2;
+      fireEvent({ kind:'divine', icon:'☄️', color:power.color, major:true,
+        title:'A meteor strikes',
+        text:`${killed} dead, ${razed} building${razed === 1 ? '' : 's'} flattened.`, cx, cz, noMark:true });
+      return null;
+    }
+    case 'plague': {
+      if(!owner) return 'Nobody holds this ground.';
+      const lost = killCitizens(owner, Math.max(1, Math.ceil(owner.pop * 0.4)));
+      owner.stability -= 0.25;
+      fireEvent({ kind:'divine', icon:'☠️', color:power.color, major:true,
+        title:'Pestilence upon ' + owner.name,
+        text:`${lost} taken in a matter of days.`, cx, cz });
+      return null;
+    }
+    case 'peace': {
+      if(!owner) return 'Nobody holds this ground.';
+      if(!owner.wars.size) return owner.name + ' is already at peace.';
+      for(const eid of Array.from(owner.wars.keys())) makePeace(owner, nationsById.get(eid));
+      owner.stability = clamp(owner.stability + 0.15, 0, 1);
+      fireEvent({ kind:'divine', icon:'🕊️', color:power.color, major:true,
+        title:'Peace is imposed on ' + owner.name,
+        text:'Every sword in the realm is put down at once.', cx, cz });
+      return null;
+    }
+    case 'uprising': {
+      if(!owner) return 'Nobody holds this ground.';
+      owner.stability = 0.04;
+      fireEvent({ kind:'divine', icon:'🔥', color:power.color, major:true,
+        title:'Unrest sweeps ' + owner.name,
+        text:'Grain hoarded, taxes resented, knives sharpened.', cx, cz });
+      return null;
+    }
+  }
+  return null;
+}
+
+/* ============================ THE TICK ============================ */
+function tick(){
+  day++;
+  const seasonChanged = updateSeason();
+  if(seasonChanged){
+    fireEvent({ kind:'season', icon: season().icon, color: 0x8d8a7e, quiet: true, noMark: true,
+      title: season().name + ' arrives',
+      text: 'Day ' + day + ' — ' + season().note + '.' });
+  }
+
+  // population counts, once
+  for(const n of nations) n.pop = 0;
+  for(const a of agents){
+    if(a.nationId){
+      const n = nationsById.get(a.nationId);
+      if(!n || n.eliminated){ a.nationId = null; a.mesh.material.color.set(0x9aa5b8); }
+      else n.pop++;
+    }
+  }
+
+  for(const a of agents){
+    moveAgent(a);
+    if(a.nationId === null && Math.random() < FOUND_CHANCE){
+      const t = tiles[a.cz][a.cx];
+      if(t.type === 'land' && !t.owner && nearestNationDistance(a.cx, a.cz) >= MIN_NATION_GAP) foundNation(a);
+    }
+  }
+
+  for(const n of nations){
+    if(n.eliminated) continue;
+    economyTick(n);
+    considerDiplomacy(n);
+    considerRebellion(n);
+    if(n.eliminated) continue;
+
+    if(--n.cooldowns.expand <= 0){
+      n.cooldowns.expand = Math.round((3 + Math.random() * 4) * n.trait.build);
+      const target = pickExpansion(n);
+      if(target){
+        const t = tiles[target[1]][target[0]];
+        if(!t.owner && n.stock.food > 4){ claimTile(n, target[0], target[1]); n.stock.food -= 2; }
+      }
+    }
+
+    if(--n.cooldowns.grow <= 0){
+      const g = options.seasons ? season().growth : 1;
+      n.cooldowns.grow = Math.max(1, Math.round((4 + Math.random() * 4) / (n.trait.grow * g * ERAS[n.era].growth)));
+      if(n.pop < n.popCap && agents.length < MAX_AGENTS && n.stock.food > 6 && n.tiles.size){
+        const [cx, cz] = parseKey(pick(Array.from(n.tiles)));
+        if(spawnAgent(cx, cz, n.id)){ n.pop++; n.stock.food -= 4; }
+      }
+    }
+
+    if(--n.cooldowns.build <= 0){
+      n.cooldowns.build = Math.max(2, Math.round((5 + Math.random() * 5) * n.trait.build));
+      if(n.pop >= 2) chooseAndBuild(n);
+    }
+
+    if(--n.cooldowns.army <= 0){
+      n.cooldowns.army = 6 + Math.floor(Math.random() * 8);
+      if(n.wars.size) raiseArmy(n);
+    }
+
+    if(n.tiles.size > n.peak.tiles) n.peak.tiles = n.tiles.size;
+    if(n.pop > n.peak.pop) n.peak.pop = n.pop;
+  }
+
+  for(const army of armies.slice()) stepArmy(army);
+
+  if(--worldEventCooldown <= 0){
+    worldEventCooldown = 24 + Math.floor(Math.random() * 22);
+    triggerWorldEvent();
+  }
+
+  favour = Math.min(MAX_FAVOUR, favour + 0.55);
+
+  if(day % 4 === 0) sampleHistory();
+  if(terrainDirty){ updateTerrainColors(); terrainDirty = false; }
+  refreshHUD();
+  if(openPanel) renderPanel(openPanel, true);
+  if(inspector.target) refreshInspector();
+}
+
+function pickExpansion(n){
+  const cands = [];
+  for(const k of n.tiles){
+    const [cx, cz] = parseKey(k);
+    for(const [nx, nz] of neighborsOf(cx, cz)){
+      if(!isLand(nx, nz)) continue;
+      const t = tiles[nz][nx];
+      if(t.owner === n.id) continue;
+      if(t.owner && !n.wars.has(t.owner)) continue;
+      cands.push([nx, nz, t.owner ? 0.3 : (t.resource === 'farmland' ? 3 : t.resource === 'forest' ? 2 : 1)]);
+    }
+  }
+  if(!cands.length) return null;
+  let total = 0; for(const c of cands) total += c[2];
+  let r = Math.random() * total;
+  for(const c of cands){ r -= c[2]; if(r <= 0) return c; }
+  return cands[0];
+}
+
+function sampleHistory(){
+  const snap = { day, total: agents.length, per: {} };
+  for(const n of nations) if(!n.eliminated) snap.per[n.id] = n.pop;
+  historySamples.push(snap);
+  if(historySamples.length > 220) historySamples.shift();
+}
+
+/* ==================================================================
+   Part 3 of 3: the event layer, the panels, the loop
+   ================================================================== */
+
+/* ============================ EVENT FEEDBACK ============================ */
+const iconTextures = new Map();
+function iconTexture(ch){
+  if(iconTextures.has(ch)) return iconTextures.get(ch);
+  const c = document.createElement('canvas');
+  c.width = c.height = 128;
+  const g = c.getContext('2d');
+  g.font = '88px "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif';
+  g.textAlign = 'center'; g.textBaseline = 'middle';
+  g.shadowColor = 'rgba(0,0,0,0.55)'; g.shadowBlur = 12;
+  g.fillText(ch, 64, 70);
+  const tex = new THREE.CanvasTexture(c);
+  iconTextures.set(ch, tex);
+  return tex;
+}
+
+function spawnFloatIcon(cx, cz, ch, colorHex, scale){
+  if(!inBounds(cx, cz)) return;
+  const mat = new THREE.SpriteMaterial({ map: iconTexture(ch), transparent: true, depthTest: false, opacity: 0 });
+  const sp = new THREE.Sprite(mat);
+  sp.renderOrder = 999;
+  const s = scale || 1;
+  sp.position.set(cellX(cx), tiles[cz][cx].y + 0.5, cellZ(cz));
+  sp.scale.setScalar(0.1);
+  scene.add(sp);
+  floatIcons.push({ sprite: sp, born: performance.now(), life: 2100 + s * 300, baseY: tiles[cz][cx].y + 0.5, size: 0.95 * s });
+
+  // a soft halo so the icon reads against bright terrain
+  const halo = new THREE.Mesh(
+    new THREE.CircleGeometry(0.42 * s, 18),
+    new THREE.MeshBasicMaterial({ color: colorHex || 0xffffff, transparent: true, opacity: 0.35, depthTest: false })
+  );
+  halo.renderOrder = 998;
+  halo.rotation.x = -Math.PI / 2;
+  halo.position.set(cellX(cx), tiles[cz][cx].y + 0.06, cellZ(cz));
+  scene.add(halo);
+  floatIcons.push({ sprite: halo, born: performance.now(), life: 1200, flat: true, baseY: tiles[cz][cx].y + 0.06, size: 1 * s });
+}
+
+/* Sprites share a module-level geometry inside three.js, so only the material
+   (and a halo's own geometry) may ever be disposed here. */
+function disposeFloat(f){
+  scene.remove(f.sprite);
+  if(f.sprite.material) f.sprite.material.dispose();
+  if(f.flat && f.sprite.geometry) f.sprite.geometry.dispose();
+}
+
+function spawnGroundRing(cx, cz, colorHex, maxScale){
+  if(!inBounds(cx, cz)) return;
+  const geo = new THREE.RingGeometry(0.3, 0.42, 26);
+  const mat = new THREE.MeshBasicMaterial({ color: colorHex, transparent: true, opacity: 0.95, side: THREE.DoubleSide, depthTest: false });
+  const m = new THREE.Mesh(geo, mat);
+  m.renderOrder = 997;
+  m.rotation.x = -Math.PI / 2;
+  m.position.set(cellX(cx), tiles[cz][cx].y + 0.05, cellZ(cz));
+  scene.add(m);
+  groundRings.push({ mesh: m, born: performance.now(), life: 1250, max: maxScale || 2.2 });
+}
+
+const KIND_META = {
+  found:   { label: 'Founding' },
+  war:     { label: 'War' },
+  peace:   { label: 'Peace' },
+  boon:    { label: 'Fortune' },
+  disaster:{ label: 'Disaster' },
+  tech:    { label: 'Discovery' },
+  divine:  { label: 'Divine' },
+  season:  { label: 'Season' }
+};
+
+function fireEvent(ev){
+  const entry = {
+    day, kind: ev.kind || 'boon', icon: ev.icon || '•',
+    title: ev.title || '', text: ev.text || '',
+    cx: ev.cx, cz: ev.cz
+  };
+  chronicle.unshift(entry);
+  if(chronicle.length > 240) chronicle.pop();
+  unreadEvents++;
+
+  if(ev.cx !== undefined && ev.cz !== undefined){
+    if(!ev.noMark){
+      spawnFloatIcon(ev.cx, ev.cz, entry.icon, ev.color || 0xffffff, ev.major ? 1.5 : 1);
+      spawnGroundRing(ev.cx, ev.cz, ev.color || 0xffffff, ev.major ? 3.2 : 2);
+    }
+    pings.push({ cx: ev.cx, cz: ev.cz, born: performance.now(), color: hexCss(ev.color || 0xffffff) });
+    if(pings.length > 30) pings.shift();
+  }
+  if(ev.major){
+    flashScreen(hexCss(ev.color || 0xd9584a));
+    shake = Math.max(shake, 0.55);
+  }
+  if(options.toasts && !ev.quiet) pushToast(entry, hexCss(ev.color || 0xd7a13c));
+  if(openPanel === 'chronicle') renderPanel('chronicle', true);
+  updateBadge();
+}
+
+function hexCss(h){ return '#' + h.toString(16).padStart(6, '0'); }
+
+const toastEl = () => document.getElementById('toasts');
+let lastToast = { title: '', at: 0 };
+function pushToast(entry, color){
+  // the same headline twice in a row is noise, not news
+  const now = performance.now();
+  if(entry.title === lastToast.title && now - lastToast.at < 6000) return;
+  lastToast = { title: entry.title, at: now };
+  const wrap = toastEl();
+  while(wrap.children.length >= 3) wrap.removeChild(wrap.firstChild);
+  const el = document.createElement('div');
+  el.className = 'toast plate';
+  el.style.borderLeftColor = color;
+  el.innerHTML =
+    `<div class="ic" style="color:${color}">${entry.icon}</div>` +
+    `<div><div class="tt">${entry.title}</div><div class="td">${entry.text}</div></div>`;
+  wrap.appendChild(el);
+  setTimeout(() => {
+    el.classList.add('leaving');
+    setTimeout(() => el.remove(), 320);
+  }, 4300);
+}
+
+function flashScreen(color){
+  const f = document.getElementById('flash');
+  f.style.color = color;
+  f.classList.remove('go');
+  void f.offsetWidth;
+  f.classList.add('go');
+}
+
+let unreadEvents = 0;
+function updateBadge(){
+  const btn = document.querySelector('.dock-btn[data-panel="chronicle"]');
+  if(!btn) return;
+  let b = btn.querySelector('.badge');
+  if(openPanel === 'chronicle') unreadEvents = 0;
+  if(unreadEvents <= 0){ if(b) b.remove(); return; }
+  if(!b){ b = document.createElement('span'); b.className = 'badge'; btn.appendChild(b); }
+  b.textContent = unreadEvents > 99 ? '99+' : unreadEvents;
+}
+
+/* ============================ HUD ============================ */
+function refreshHUD(){
+  const active = nations.filter(n => !n.eliminated);
+  let warPairs = 0;
+  for(const n of active) warPairs += n.wars.size;
+  document.getElementById('r-day').textContent = fmt(day);
+  document.getElementById('r-nations').textContent = active.length;
+  document.getElementById('r-pop').textContent = agents.length;
+  document.getElementById('r-wars').textContent = warPairs / 2;
+
+  let topEra = 0;
+  for(const n of active) if(n.era > topEra) topEra = n.era;
+  document.getElementById('hud-epoch').textContent = ERAS[topEra].name;
+
+  const s = season();
+  document.getElementById('season-orb').textContent = s.icon;
+  document.getElementById('season-name').textContent = s.name;
+  document.getElementById('season-detail').textContent =
+    'year ' + (Math.floor(day / (DAYS_PER_SEASON * 4)) + 1) + ' · ' + clockWord();
+
+  document.getElementById('energy-fill').style.width = (favour / MAX_FAVOUR * 100) + '%';
+  document.getElementById('energy-val').textContent = Math.floor(favour) + ' / ' + MAX_FAVOUR;
+}
+
+/* ============================ DRAWER / PANELS ============================ */
+let openPanel = null;
+let chronFilter = 'all';
+let panelTickCounter = 0;
+
+const PANEL_TITLES = {
+  nations:  ['States of the world', 'click a card to inspect'],
+  chronicle:['The Annals', 'everything that has happened'],
+  atlas:    ['Atlas', 'click the map to travel'],
+  ledger:   ['Ledger', 'population and territory over time'],
+  powers:   ['Divine powers', 'spend favour on the world'],
+  settings: ['Rules of the world', ''],
+  guide:    ['Guide', 'how this world works']
+};
+
+function setPanel(name){
+  if(openPanel === name){ closeDrawer(); return; }
+  openPanel = name;
+  document.querySelectorAll('.dock-btn[data-panel]').forEach(b =>
+    b.classList.toggle('on', b.dataset.panel === name));
+  const d = document.getElementById('drawer');
+  document.getElementById('drawer-title').textContent = PANEL_TITLES[name][0];
+  document.getElementById('drawer-sub').textContent = PANEL_TITLES[name][1];
+  d.classList.add('open');
+  renderPanel(name);
+  if(name === 'chronicle'){ unreadEvents = 0; updateBadge(); }
+}
+function closeDrawer(){
+  openPanel = null;
+  document.getElementById('drawer').classList.remove('open');
+  document.querySelectorAll('.dock-btn[data-panel]').forEach(b => b.classList.remove('on'));
+}
+
+function renderPanel(name, isRefresh){
+  if(isRefresh){
+    if(++panelTickCounter % 3 !== 0 && name !== 'chronicle') return;
+    if(name === 'settings' || name === 'guide' || name === 'powers') return;
+  }
+  const body = document.getElementById('drawer-body');
+  const keepScroll = isRefresh ? body.scrollTop : 0;
+  if(name === 'nations') body.innerHTML = renderNations();
+  else if(name === 'chronicle') body.innerHTML = renderChronicle();
+  else if(name === 'atlas') renderAtlas(body, isRefresh);
+  else if(name === 'ledger') renderLedger(body, isRefresh);
+  else if(name === 'powers') body.innerHTML = renderPowers();
+  else if(name === 'settings') body.innerHTML = renderSettings();
+  else if(name === 'guide') body.innerHTML = renderGuide();
+  body.scrollTop = keepScroll;
+}
+
+function stabilityColor(v){
+  if(v > 0.6) return 'var(--verdigris)';
+  if(v > 0.32) return 'var(--brass)';
+  return 'var(--ember)';
+}
+
+function renderNations(){
+  const active = nations.filter(n => !n.eliminated).sort((a, b) => b.tiles.size - a.tiles.size);
+  if(!active.length) return `<p class="empty">No states yet — settlers are still wandering. Give them time, or send more from the Powers panel.</p>`;
+  return '<div class="nation-grid">' + active.map(n => {
+    const hex = '#' + n.color.getHexString();
+    const chips = [];
+    if(n.wars.size) chips.push(`<span class="chip war">⚔️ ${n.wars.size} war${n.wars.size > 1 ? 's' : ''}</span>`);
+    if(n.allies.size) chips.push(`<span class="chip ally">🤝 ${n.allies.size}</span>`);
+    if(n.trades.size) chips.push(`<span class="chip trade">🏺 ${n.trades.size}</span>`);
+    const arm = armiesOf(n).length;
+    if(arm) chips.push(`<span class="chip war">🗡️ ${arm}</span>`);
+    if(!chips.length) chips.push(`<span class="chip">at peace</span>`);
+    return `<div class="nation-card" data-nation="${n.id}">
+      <div class="nc-top">
+        <span class="swatch" style="background:${hex}"></span>
+        <span class="nc-name"><span class="n">${n.name}</span><span class="t">${n.trait.icon} ${n.trait.name} · ${ERAS[n.era].name}</span></span>
+      </div>
+      <div class="nc-stats">
+        <div class="cell"><span class="v">${n.pop}</span><span class="k">Souls</span></div>
+        <div class="cell"><span class="v">${n.tiles.size}</span><span class="k">Tiles</span></div>
+        <div class="cell"><span class="v">${Math.round(n.stability * 100)}</span><span class="k">Stability</span></div>
+      </div>
+      <div class="meter"><i style="width:${Math.round(n.stability * 100)}%;background:${stabilityColor(n.stability)}"></i></div>
+      <div class="chips">${chips.join('')}</div>
+    </div>`;
+  }).join('') + '</div>';
+}
+
+function renderChronicle(){
+  const kinds = ['all', 'war', 'peace', 'found', 'disaster', 'boon', 'tech', 'divine'];
+  const labels = { all:'Everything', war:'War', peace:'Peace', found:'Founding', disaster:'Disaster', boon:'Fortune', tech:'Discovery', divine:'Divine' };
+  const filters = kinds.map(k =>
+    `<button class="filter-btn ${chronFilter === k ? 'on' : ''}" data-chron="${k}">${labels[k]}</button>`).join('');
+  const rows = chronicle.filter(e => chronFilter === 'all' || e.kind === chronFilter).slice(0, 90);
+  const list = rows.length
+    ? rows.map(e => `<div class="chron ${e.kind}"><span class="ic">${e.icon}</span><span class="d">DAY ${e.day}</span>
+        <span class="txt"><b>${e.title}</b> — ${e.text}</span></div>`).join('')
+    : `<p class="empty">Nothing of this kind has happened yet.</p>`;
+  return `<div class="filter-row">${filters}</div><div id="chronicle-list">${list}</div>`;
+}
+
+function renderAtlas(body, isRefresh){
+  if(!isRefresh || !document.getElementById('minimap')){
+    body.innerHTML = `<div class="map-wrap">
+      <canvas id="minimap" width="480" height="480"></canvas>
+      <div>
+        <div class="terrain-key">
+          <div class="key-row"><span class="key-dot" style="background:#1d4a68"></span> Water — impassable</div>
+          <div class="key-row"><span class="key-dot" style="background:#3c6b39"></span> Open land — settle and farm here</div>
+          <div class="key-row"><span class="key-dot" style="background:#2f5730"></span> Woodland — timber for building</div>
+          <div class="key-row"><span class="key-dot" style="background:#7d9440"></span> Farmland — the best food</div>
+          <div class="key-row"><span class="key-dot" style="background:#857f78"></span> Mountain — ore, and easy to defend</div>
+          <div class="key-row"><span class="key-dot" style="background:#ece2ce"></span> Flag — a capital</div>
+          <div class="key-row"><span class="key-dot" style="background:#d9584a"></span> Pulse — something just happened there</div>
+        </div>
+        <p class="empty" style="margin-top:14px">Every coloured region is one state's claim. Click anywhere on the map to swing the camera over it.</p>
+      </div>
+    </div>`;
+    const mm = document.getElementById('minimap');
+    mm.addEventListener('click', (e) => {
+      const r = mm.getBoundingClientRect();
+      const cx = clamp(Math.floor((e.clientX - r.left) / r.width * GRID), 0, GRID - 1);
+      const cz = clamp(Math.floor((e.clientY - r.top) / r.height * GRID), 0, GRID - 1);
+      focusOn(cx, cz);
+      showTileInspector(cx, cz);
+    });
+  }
+  drawMinimap();
+}
+
+function drawMinimap(){
+  const mm = document.getElementById('minimap');
+  if(!mm || !tiles) return;
+  const g = mm.getContext('2d');
+  const w = mm.width, s = w / GRID;
+  g.fillStyle = '#06090e'; g.fillRect(0, 0, w, w);
+  for(let cz = 0; cz < GRID; cz++){
+    for(let cx = 0; cx < GRID; cx++){
+      const t = tiles[cz][cx];
+      let col;
+      if(t.type === 'water') col = '#153348';
+      else if(t.owner){ const n = nationsById.get(t.owner); col = n ? '#' + n.color.getHexString() : '#3c6b39'; }
+      else if(t.type === 'mountain') col = '#7d7871';
+      else if(t.resource === 'forest') col = '#2f5730';
+      else if(t.resource === 'farmland') col = '#6b813a';
+      else col = '#3c6b39';
+      g.fillStyle = col;
+      g.fillRect(cx * s, cz * s, s + 0.7, s + 0.7);
+    }
+  }
+  if(options.buildings){
+    g.fillStyle = 'rgba(0,0,0,0.35)';
+    for(let cz = 0; cz < GRID; cz++) for(let cx = 0; cx < GRID; cx++)
+      if(tiles[cz][cx].building) g.fillRect(cx * s + s * 0.3, cz * s + s * 0.3, s * 0.4, s * 0.4);
+  }
+  for(const n of nations){
+    if(n.eliminated) continue;
+    g.fillStyle = '#ece2ce';
+    g.beginPath();
+    g.arc((n.capital.cx + 0.5) * s, (n.capital.cz + 0.5) * s, s * 0.55, 0, Math.PI * 2);
+    g.fill();
+    g.fillStyle = '#' + n.color.getHexString();
+    g.beginPath();
+    g.arc((n.capital.cx + 0.5) * s, (n.capital.cz + 0.5) * s, s * 0.3, 0, Math.PI * 2);
+    g.fill();
+  }
+  if(options.armies){
+    for(const a of armies){
+      const n = nationsById.get(a.nationId);
+      g.strokeStyle = n ? '#' + n.color.getHexString() : '#fff';
+      g.lineWidth = 1.6;
+      g.strokeRect((a.cx + 0.1) * s, (a.cz + 0.1) * s, s * 0.8, s * 0.8);
+    }
+  }
+  const now = performance.now();
+  for(const p of pings){
+    const t = (now - p.born) / 2400;
+    if(t > 1) continue;
+    g.strokeStyle = p.color;
+    g.globalAlpha = 1 - t;
+    g.lineWidth = 2;
+    g.beginPath();
+    g.arc((p.cx + 0.5) * s, (p.cz + 0.5) * s, s * (1 + t * 6), 0, Math.PI * 2);
+    g.stroke();
+    g.globalAlpha = 1;
+  }
+}
+
+/* ---- the ledger charts ---- */
+function renderLedger(body, isRefresh){
+  if(!isRefresh || !document.getElementById('pop-chart')){
+    body.innerHTML = `
+      <div class="chart-block">
+        <div class="chart-head">
+          <h3>Population over time</h3>
+          <span class="eyebrow" id="pop-chart-note">souls alive, sampled every 4 days</span>
+        </div>
+        <canvas id="pop-chart" class="chart-canvas" height="440"></canvas>
+        <div class="chart-legend" id="pop-legend"></div>
+      </div>
+      <div class="chart-block">
+        <div class="chart-head">
+          <h3>Territory held today</h3>
+          <span class="eyebrow">tiles claimed, day <span id="terr-day">0</span></span>
+        </div>
+        <canvas id="terr-chart" class="chart-canvas" height="340"></canvas>
+      </div>`;
+    const pc = document.getElementById('pop-chart');
+    pc.addEventListener('mousemove', onPopHover);
+    pc.addEventListener('mouseleave', () => { popHover = null; drawPopChart(); });
+  }
+  document.getElementById('terr-day').textContent = day;
+  drawPopChart();
+  drawTerritoryChart();
+}
+
+function fitCanvas(c, cssHeight){
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  const w = c.clientWidth || 600;
+  c.width = Math.round(w * dpr);
+  c.height = Math.round(cssHeight * dpr);
+  c.style.height = cssHeight + 'px';
+  const g = c.getContext('2d');
+  g.setTransform(dpr, 0, 0, dpr, 0, 0);
+  return { g, w, h: cssHeight };
+}
+
+const INK_MUTED = '#8d8a7e', INK_TEXT = '#ece2ce', GRIDLINE = 'rgba(226,214,190,0.10)';
+let popHover = null;
+let popChartGeom = null;
+
+function topNations(k){
+  return nations.filter(n => !n.eliminated).sort((a, b) => b.pop - a.pop).slice(0, k);
+}
+
+function drawPopChart(){
+  const c = document.getElementById('pop-chart');
+  if(!c) return;
+  const { g, w, h } = fitCanvas(c, 220);
+  g.clearRect(0, 0, w, h);
+  const padL = 44, padR = 16, padT = 12, padB = 26;
+  const plotW = w - padL - padR, plotH = h - padT - padB;
+
+  if(historySamples.length < 2){
+    g.fillStyle = INK_MUTED;
+    g.font = '12px "Karla", sans-serif';
+    g.fillText('The record begins after a few days have passed.', padL, padT + 20);
+    return;
+  }
+
+  const series = topNations(6);
+  const d0 = historySamples[0].day, d1 = historySamples[historySamples.length - 1].day || 1;
+  let maxV = 4;
+  for(const s of historySamples){
+    if(s.total > maxV) maxV = s.total;
+  }
+  maxV = Math.ceil(maxV / 10) * 10;
+
+  const X = d => padL + ((d - d0) / Math.max(1, d1 - d0)) * plotW;
+  const Y = v => padT + plotH - (v / maxV) * plotH;
+
+  // grid + axis labels (every label names a value the chart reaches)
+  g.font = '10px "IBM Plex Mono", monospace';
+  g.textBaseline = 'middle';
+  for(let i = 0; i <= 4; i++){
+    const v = maxV * i / 4, y = Y(v);
+    g.strokeStyle = GRIDLINE; g.lineWidth = 1;
+    g.beginPath(); g.moveTo(padL, y + 0.5); g.lineTo(w - padR, y + 0.5); g.stroke();
+    g.fillStyle = INK_MUTED; g.textAlign = 'right';
+    g.fillText(String(Math.round(v)), padL - 8, y);
+  }
+  g.textBaseline = 'top';
+  for(let i = 0; i <= 3; i++){
+    const d = Math.round(d0 + (d1 - d0) * i / 3);
+    g.fillStyle = INK_MUTED;
+    g.textAlign = i === 0 ? 'left' : (i === 3 ? 'right' : 'center');
+    g.fillText('day ' + d, X(d), h - padB + 7);
+  }
+
+  // total population as a recessive area behind the series
+  g.beginPath();
+  g.moveTo(X(d0), Y(0));
+  for(const s of historySamples) g.lineTo(X(s.day), Y(s.total));
+  g.lineTo(X(d1), Y(0));
+  g.closePath();
+  g.fillStyle = 'rgba(226,214,190,0.07)';
+  g.fill();
+
+  // one line per state, coloured by the state itself
+  g.lineJoin = 'round'; g.lineCap = 'round';
+  for(const n of series){
+    g.beginPath();
+    let started = false;
+    for(const s of historySamples){
+      const v = s.per[n.id];
+      if(v === undefined){ started = false; continue; }
+      const x = X(s.day), y = Y(v);
+      if(!started){ g.moveTo(x, y); started = true; } else g.lineTo(x, y);
+    }
+    g.strokeStyle = '#' + n.color.getHexString();
+    g.lineWidth = 2;
+    g.stroke();
+    const last = historySamples[historySamples.length - 1];
+    if(last.per[n.id] !== undefined){
+      g.beginPath();
+      g.arc(X(last.day), Y(last.per[n.id]), 3.2, 0, Math.PI * 2);
+      g.fillStyle = '#' + n.color.getHexString();
+      g.fill();
+      g.strokeStyle = '#0f151e'; g.lineWidth = 2; g.stroke();
+    }
+  }
+
+  popChartGeom = { padL, padR, padT, padB, plotW, plotH, d0, d1, maxV, X, Y, series };
+
+  if(popHover){
+    const s = popHover;
+    const x = X(s.day);
+    g.strokeStyle = 'rgba(226,214,190,0.35)';
+    g.lineWidth = 1;
+    g.beginPath(); g.moveTo(x + 0.5, padT); g.lineTo(x + 0.5, padT + plotH); g.stroke();
+    const lines = [['Day ' + s.day, INK_TEXT], ['' + s.total + ' alive in all', INK_MUTED]];
+    for(const n of series) if(s.per[n.id] !== undefined) lines.push([n.name + '  ' + s.per[n.id], '#' + n.color.getHexString()]);
+    const bw = 148, bh = 14 + lines.length * 14;
+    const bx = Math.min(x + 10, w - padR - bw), by = padT + 6;
+    g.fillStyle = 'rgba(10,15,22,0.94)';
+    g.strokeStyle = 'rgba(226,214,190,0.18)';
+    g.lineWidth = 1;
+    g.beginPath();
+    if(g.roundRect) g.roundRect(bx, by, bw, bh, 7); else g.rect(bx, by, bw, bh);
+    g.fill(); g.stroke();
+    g.textAlign = 'left'; g.textBaseline = 'middle';
+    lines.forEach((ln, i) => {
+      g.fillStyle = ln[1];
+      g.font = (i === 0 ? '600 11px' : '11px') + ' "IBM Plex Mono", monospace';
+      g.fillText(ln[0], bx + 9, by + 14 + i * 14);
+    });
+  }
+
+  const legend = document.getElementById('pop-legend');
+  if(legend){
+    legend.innerHTML = series.length
+      ? series.map(n => `<span class="li"><i style="background:#${n.color.getHexString()}"></i>${n.name} <span class="num" style="color:var(--muted)">${n.pop}</span></span>`).join('')
+        + `<span class="li"><i style="background:rgba(226,214,190,0.3)"></i>All souls <span class="num" style="color:var(--muted)">${agents.length}</span></span>`
+      : '<span class="li" style="color:var(--muted)">No states to chart yet.</span>';
+  }
+}
+
+function onPopHover(e){
+  if(!popChartGeom || !historySamples.length) return;
+  const c = e.currentTarget;
+  const r = c.getBoundingClientRect();
+  const x = e.clientX - r.left;
+  const { padL, plotW, d0, d1 } = popChartGeom;
+  const dTarget = d0 + clamp((x - padL) / plotW, 0, 1) * (d1 - d0);
+  let best = historySamples[0], bestD = Infinity;
+  for(const s of historySamples){ const d = Math.abs(s.day - dTarget); if(d < bestD){ bestD = d; best = s; } }
+  popHover = best;
+  drawPopChart();
+}
+
+function drawTerritoryChart(){
+  const c = document.getElementById('terr-chart');
+  if(!c) return;
+  const list = nations.filter(n => !n.eliminated).sort((a, b) => b.tiles.size - a.tiles.size).slice(0, 8);
+  const rowH = 26;
+  const { g, w, h } = fitCanvas(c, Math.max(60, list.length * rowH + 16));
+  g.clearRect(0, 0, w, h);
+  if(!list.length){
+    g.fillStyle = INK_MUTED; g.font = '12px "Karla", sans-serif';
+    g.fillText('No claims have been staked yet.', 4, 22);
+    return;
+  }
+  const labelW = Math.min(150, w * 0.32);
+  const valW = 40;
+  const barMax = w - labelW - valW - 10;
+  const maxT = Math.max(...list.map(n => n.tiles.size), 1);
+  g.textBaseline = 'middle';
+  list.forEach((n, i) => {
+    const y = 8 + i * rowH;
+    g.fillStyle = INK_TEXT;
+    g.font = '12px "Karla", sans-serif';
+    g.textAlign = 'left';
+    let name = n.name;
+    while(g.measureText(name).width > labelW - 10 && name.length > 4) name = name.slice(0, -2);
+    g.fillText(name === n.name ? name : name + '…', 0, y + rowH / 2 - 3);
+    const bw = Math.max(4, (n.tiles.size / maxT) * barMax);
+    g.fillStyle = '#' + n.color.getHexString();
+    g.beginPath();
+    if(g.roundRect) g.roundRect(labelW, y + 4, bw, rowH - 14, [2, 4, 4, 2]);
+    else g.rect(labelW, y + 4, bw, rowH - 14);
+    g.fill();
+    g.fillStyle = INK_MUTED;
+    g.font = '11px "IBM Plex Mono", monospace';
+    g.textAlign = 'left';
+    g.fillText(String(n.tiles.size), labelW + bw + 8, y + rowH / 2 - 3);
+  });
+}
+
+/* ---- powers, settings, guide ---- */
+function renderPowers(){
+  return `<p class="empty" style="margin-top:0">Favour rebuilds slowly on its own. Arm a power, then click the world to place it.</p>
+  <div class="power-grid">` + POWERS.map(p => {
+    const can = favour >= p.cost;
+    return `<button class="power ${armedPower && armedPower.id === p.id ? 'on' : ''}" data-power="${p.id}" ${can ? '' : 'disabled'}>
+      <span class="pi">${p.icon}</span>
+      <span><span class="pn">${p.name}</span><span class="pd">${p.desc}</span><span class="pc">${p.cost} FAVOUR</span></span>
+    </button>`;
+  }).join('') + '</div>';
+}
+
+const OPTION_LABELS = {
+  buildings: ['Show buildings', 'Towns, farms and towers on the map'],
+  armies:    ['Show armies', 'Marching units and their banners'],
+  decor:     ['Show trees and rocks', 'Scenery only — no effect on the sim'],
+  toasts:    ['Announce events', 'Banners at the top when something happens'],
+  dayNight:  ['Day and night', 'The sun crosses the sky every eight days'],
+  seasons:   ['Seasons', 'Winter slows growth; the land changes colour'],
+  autoOrbit: ['Drift the camera', 'Slowly orbit the world when idle']
+};
+function renderSettings(){
+  return Object.keys(OPTION_LABELS).map(k =>
+    `<div class="opt-row">
+      <span class="lbl"><span class="t">${OPTION_LABELS[k][0]}</span><span class="d">${OPTION_LABELS[k][1]}</span></span>
+      <button class="toggle ${options[k] ? 'on' : ''}" data-opt="${k}" role="switch" aria-checked="${options[k]}" aria-label="${OPTION_LABELS[k][0]}"></button>
+    </div>`).join('');
+}
+
+function renderGuide(){
+  return `<div class="help-cols">
+    <div>
+      <h3>Controls</h3>
+      <dl>
+        <dt>Drag</dt><dd>Orbit the world</dd>
+        <dt>Scroll</dt><dd>Zoom in and out</dd>
+        <dt>Click</dt><dd>Inspect a tile</dd>
+        <dt>Space</dt><dd>Pause and resume</dd>
+        <dt>1 – 6</dt><dd>Set the speed, ¼× to 8×</dd>
+        <dt>Esc</dt><dd>Close panels, disarm a power</dd>
+      </dl>
+    </div>
+    <div>
+      <h3>How a state lives</h3>
+      <p style="font-size:12.5px;line-height:1.5;color:#cfc7b6;margin:0">
+        Wanderers roam until one plants a flag. From there a state claims neighbouring ground, farms it for
+        food, cuts timber, mines ore and spends all three on buildings. Food feeds the population; gold pays
+        armies; knowledge carries the state into the next age. When stability collapses, the provinces revolt.
+      </p>
+    </div>
+    <div>
+      <h3>The ages</h3>
+      <div class="era-track">
+        ${ERAS.map((e, i) => `<div class="era-step"><span class="n">${e.icon}</span><span>${e.name}</span><span class="r">${e.science ? e.science + ' knowledge' : 'from the start'}</span></div>`).join('')}
+      </div>
+    </div>
+    <div>
+      <h3>Character</h3>
+      <div class="era-track">
+        ${TRAITS.map(t => `<div class="era-step"><span class="n">${t.icon}</span><span>${t.name}</span><span class="r"></span></div>`).join('')}
+      </div>
+      <p style="font-size:12px;color:var(--muted);margin:8px 0 0;line-height:1.45">Every state is born with one of these and keeps it for life.</p>
+    </div>
+    <div>
+      <h3>What you can build</h3>
+      <dl>
+        ${BUILD_ORDER.map(id => `<dt>${BUILDINGS[id].icon}</dt><dd><b>${BUILDINGS[id].name}</b> — ${BUILDINGS[id].desc}</dd>`).join('')}
+      </dl>
+    </div>
+  </div>`;
+}
+
+/* ============================ INSPECTOR ============================ */
+const inspector = { target: null };
+
+function showTileInspector(cx, cz){
+  inspector.target = { kind: 'tile', cx, cz };
+  refreshInspector();
+}
+function showNationInspector(id){
+  const n = nationsById.get(id);
+  if(!n || n.eliminated) return;
+  inspector.target = { kind: 'nation', id };
+  refreshInspector();
+}
+function hideInspector(){
+  inspector.target = null;
+  document.getElementById('inspector').classList.remove('show');
+}
+
+function row(k, v){ return `<div class="irow"><span class="k">${k}</span><span class="v">${v}</span></div>`; }
+
+function refreshInspector(){
+  const el = document.getElementById('inspector');
+  const t = inspector.target;
+  if(!t){ el.classList.remove('show'); return; }
+  el.classList.add('show');
+  const rows = document.getElementById('insp-rows');
+  const stocks = document.getElementById('insp-stocks');
+  const note = document.getElementById('insp-note');
+  const focusBtn = document.getElementById('insp-focus');
+  focusBtn.style.display = 'block';
+
+  if(t.kind === 'tile'){
+    const tile = tiles[t.cz][t.cx];
+    const owner = tile.owner ? nationsById.get(tile.owner) : null;
+    document.getElementById('insp-swatch').style.background = owner ? '#' + owner.color.getHexString() : 'var(--muted)';
+    document.getElementById('insp-title').textContent = `Tile ${t.cx}, ${t.cz}`;
+    document.getElementById('insp-sub').textContent = tile.type === 'water' ? 'Open water' : tile.type === 'mountain' ? 'High ground' : 'Lowland';
+    rows.innerHTML =
+      row('Ground', tile.type[0].toUpperCase() + tile.type.slice(1)) +
+      row('Yields', tile.resource ? RESOURCE_LABEL[tile.resource] : '—') +
+      row('Elevation', (tile.hRaw * 100).toFixed(0) + ' m') +
+      row('Held by', owner ? `<a href="#" data-nation-link="${owner.id}" style="color:#${owner.color.getHexString()};text-decoration:none;border-bottom:1px dotted">${owner.name}</a>` : 'Nobody') +
+      row('Building', tile.building ? BUILDINGS[tile.building].icon + ' ' + BUILDINGS[tile.building].name : 'None') +
+      row('People here', agents.filter(a => a.cx === t.cx && a.cz === t.cz).length);
+    stocks.style.display = 'none';
+    note.textContent = tile.building ? BUILDINGS[tile.building].desc : '';
+  } else {
+    const n = nationsById.get(t.id);
+    if(!n || n.eliminated){ hideInspector(); return; }
+    document.getElementById('insp-swatch').style.background = '#' + n.color.getHexString();
+    document.getElementById('insp-title').textContent = n.name;
+    document.getElementById('insp-sub').textContent = `${n.trait.icon} ${n.trait.name} · ${ERAS[n.era].name}`;
+    const warNames = Array.from(n.wars.keys()).map(id => (nationsById.get(id) || {}).name || '?');
+    const allyNames = Array.from(n.allies).map(id => (nationsById.get(id) || {}).name || '?');
+    const tradeNames = Array.from(n.trades).map(id => (nationsById.get(id) || {}).name || '?');
+    const nextEra = ERAS[n.era + 1];
+    rows.innerHTML =
+      row('Founded', 'day ' + n.founded + ' · age ' + (day - n.founded)) +
+      row('Territory', n.tiles.size + ' tiles') +
+      row('Population', n.pop + ' / ' + n.popCap) +
+      row('Food balance', (n.foodFlow >= 0 ? '+' : '') + (n.foodFlow || 0).toFixed(1) + ' a day') +
+      row('Stability', `<span style="color:${stabilityColor(n.stability)}">${Math.round(n.stability * 100)}%</span>`) +
+      row('Knowledge', Math.round(n.science) + (nextEra ? ' / ' + nextEra.science : '')) +
+      row('Armies', armiesOf(n).length) +
+      row('At war with', warNames.length ? warNames.join(', ') : 'nobody') +
+      row('Allies', allyNames.length ? allyNames.join(', ') : 'none') +
+      row('Trade with', tradeNames.length ? tradeNames.join(', ') : 'none');
+    stocks.style.display = 'grid';
+    stocks.innerHTML =
+      `<div class="stock"><div class="i">🌾</div><span class="v">${Math.round(n.stock.food)}</span></div>` +
+      `<div class="stock"><div class="i">🪵</div><span class="v">${Math.round(n.stock.wood)}</span></div>` +
+      `<div class="stock"><div class="i">⛏️</div><span class="v">${Math.round(n.stock.ore)}</span></div>` +
+      `<div class="stock"><div class="i">💰</div><span class="v">${Math.round(n.stock.gold)}</span></div>` +
+      `<div class="stock"><div class="i">📚</div><span class="v">${Math.round(n.science)}</span></div>`;
+    note.innerHTML = n.log.length
+      ? n.log.slice(0, 3).map(l => `day ${l.day} — ${l.text}`).join('<br>')
+      : n.trait.desc;
+  }
+}
+
+function focusOn(cx, cz){
+  const tx = cellX(cx), tz = cellZ(cz), ty = tiles[cz][cx].y + 0.8;
+  const from = cam.target.clone();
+  const start = performance.now();
+  (function step(){
+    const k = Math.min(1, (performance.now() - start) / 620);
+    const e = 1 - Math.pow(1 - k, 3);
+    cam.target.set(from.x + (tx - from.x) * e, from.y + (ty - from.y) * e, from.z + (tz - from.z) * e);
+    updateCamera();
+    if(k < 1) requestAnimationFrame(step);
+  })();
+}
+
+/* ============================ WORLD CLICK ============================ */
+function handleWorldClick(e){
+  const cell = cellFromEvent(e);
+  if(!cell) return;
+  if(armedPower){
+    const p = armedPower;
+    if(favour < p.cost){ disarmPower(); return; }
+    favour -= p.cost;
+    const problem = applyPower(p, cell.cx, cell.cz);
+    if(problem){
+      favour += p.cost;
+      pushToast({ icon: '✋', title: 'Nothing happens', text: problem }, '#8d8a7e');
+    }
+    disarmPower();
+    refreshHUD();
+    if(openPanel === 'powers') renderPanel('powers');
+    return;
+  }
+  showTileInspector(cell.cx, cell.cz);
+}
+
+function armPower(id){
+  const p = POWERS.find(x => x.id === id);
+  if(!p || favour < p.cost) return;
+  armedPower = p;
+  document.getElementById('armed-ic').textContent = p.icon;
+  document.getElementById('armed-tx').innerHTML = `<b>${p.name}</b> armed — click the world`;
+  document.getElementById('armed').classList.add('show');
+  document.getElementById('stage').classList.add('armed');
+  document.getElementById('hint').style.opacity = '0';
+  // get the panel out of the way so the whole world is clickable
+  if(openPanel === 'powers') closeDrawer();
+}
+function disarmPower(){
+  armedPower = null;
+  document.getElementById('armed').classList.remove('show');
+  document.getElementById('stage').classList.remove('armed');
+  if(openPanel === 'powers') renderPanel('powers');
+}
+
+/* ============================ CONTROLS ============================ */
+function setSpeed(v){
+  speedMult = v;
+  document.querySelectorAll('.speed-btn').forEach(b => b.classList.toggle('on', +b.dataset.speed === v));
+}
+function togglePause(){
+  paused = !paused;
+  const b = document.getElementById('play-btn');
+  b.textContent = paused ? '▶' : '⏸';
+  b.classList.toggle('paused', paused);
+}
+
+function setupControls(){
+  document.querySelectorAll('.dock-btn[data-panel]').forEach(b =>
+    b.addEventListener('click', () => setPanel(b.dataset.panel)));
+  document.getElementById('drawer-close').addEventListener('click', closeDrawer);
+  document.getElementById('play-btn').addEventListener('click', togglePause);
+  document.querySelectorAll('.speed-btn').forEach(b =>
+    b.addEventListener('click', () => setSpeed(+b.dataset.speed)));
+  document.getElementById('new-world').addEventListener('click', resetWorld);
+  document.getElementById('insp-close').addEventListener('click', hideInspector);
+  document.getElementById('insp-focus').addEventListener('click', () => {
+    const t = inspector.target;
+    if(!t) return;
+    if(t.kind === 'tile') focusOn(t.cx, t.cz);
+    else { const n = nationsById.get(t.id); if(n) focusOn(n.capital.cx, n.capital.cz); }
+  });
+
+  document.getElementById('drawer-body').addEventListener('click', (e) => {
+    const card = e.target.closest('.nation-card');
+    if(card){ const n = nationsById.get(+card.dataset.nation); showNationInspector(+card.dataset.nation); if(n) focusOn(n.capital.cx, n.capital.cz); return; }
+    const chron = e.target.closest('[data-chron]');
+    if(chron){ chronFilter = chron.dataset.chron; renderPanel('chronicle'); return; }
+    const chronRow = e.target.closest('.chron');
+    if(chronRow){
+      const idx = Array.from(chronRow.parentNode.children).indexOf(chronRow);
+      const rows = chronicle.filter(x => chronFilter === 'all' || x.kind === chronFilter);
+      const ev = rows[idx];
+      if(ev && ev.cx !== undefined){ focusOn(ev.cx, ev.cz); spawnGroundRing(ev.cx, ev.cz, 0xd7a13c, 2.4); }
+      return;
+    }
+    const pw = e.target.closest('[data-power]');
+    if(pw){ if(armedPower && armedPower.id === pw.dataset.power) disarmPower(); else armPower(pw.dataset.power); return; }
+    const opt = e.target.closest('[data-opt]');
+    if(opt){
+      const k = opt.dataset.opt;
+      options[k] = !options[k];
+      opt.classList.toggle('on', options[k]);
+      opt.setAttribute('aria-checked', String(options[k]));
+      applyOptions();
+      return;
+    }
+  });
+
+  document.getElementById('inspector').addEventListener('click', (e) => {
+    const link = e.target.closest('[data-nation-link]');
+    if(link){ e.preventDefault(); showNationInspector(+link.dataset.nationLink); }
+  });
+
+  window.addEventListener('keydown', (e) => {
+    if(e.target.tagName === 'INPUT') return;
+    if(e.code === 'Space'){ e.preventDefault(); togglePause(); }
+    else if(e.key === 'Escape'){ if(armedPower) disarmPower(); else if(openPanel) closeDrawer(); else hideInspector(); }
+    else if(e.key >= '1' && e.key <= '6'){ setSpeed([0.25, 0.5, 1, 2, 4, 8][+e.key - 1]); }
+  });
+}
+
+function applyOptions(){
+  for(const t of decorMeshes) t.visible = options.decor && tiles[t.userData.cz][t.userData.cx].type !== 'water';
+  for(let cz = 0; cz < GRID; cz++) for(let cx = 0; cx < GRID; cx++){
+    const m = tiles[cz][cx].buildingMesh;
+    if(m) m.visible = options.buildings;
+  }
+  for(const a of armies) a.mesh.visible = options.armies;
+  terrainDirty = true;
+}
+
+/* ============================ RESET ============================ */
+function resetWorld(){
+  for(const a of agents.slice()) removeAgent(a);
+  agents = [];
+  for(const a of armies.slice()) destroyArmy(a);
+  armies = [];
+  if(tiles) for(const rowT of tiles) for(const t of rowT){ if(t.buildingMesh) disposeObj(t.buildingMesh); t.buildingMesh = null; t.building = null; }
+  for(const n of nations) disposeObj(n.capitalMesh);
+  for(const r of groundRings) disposeObj(r.mesh);
+  groundRings.length = 0;
+  for(const f of floatIcons) disposeFloat(f);
+  floatIcons.length = 0;
+  pings.length = 0;
+  spinners.length = 0;
+  nations = []; nationsById = new Map(); usedNames = new Set();
+  nextNationId = 1; nextAgentId = 1; nextArmyId = 1;
+  buildingCount = 0; day = 0; seasonIndex = 0; favour = MAX_FAVOUR;
+  seasonColor = new THREE.Color(SEASONS[0].tint);
+  worldEventCooldown = 26 + Math.floor(Math.random() * 18);
+  chronicle.length = 0; historySamples.length = 0; unreadEvents = 0;
+  hideInspector(); disarmPower(); updateBadge();
+  toastEl().innerHTML = '';
+
+  generateWorldData();
+  buildTerrainMesh();
+  buildDecorations();
+  seedAgents();
+  refreshHUD();
+  if(openPanel) renderPanel(openPanel);
+  fireEvent({ kind:'found', icon:'🌍', color:0x4fb9a1, quiet:false, noMark:true,
+    title:'A new world', text:'Settlers step onto empty ground. Nothing has happened here yet.' });
+}
+
+function seedAgents(){
+  for(let i = 0; i < 42; i++){
+    const c = randomLandCell();
+    spawnAgent(c.cx, c.cz, null);
+  }
+}
+
+/* ============================ ANIMATION ============================ */
+function animate(now){
+  requestAnimationFrame(animate);
+  const dt = Math.min(80, now - lastFrameTime);
+  lastFrameTime = now;
+  const t = now / 1000;
+
+  if(!paused){
+    tickAccum += dt * speedMult;
+    if(tickAccum >= BASE_TICK_MS){
+      tickAccum -= BASE_TICK_MS;
+      if(tickAccum > BASE_TICK_MS * 3) tickAccum = 0;
+      tick();
+    }
+    tickProgress = clamp(tickAccum / BASE_TICK_MS, 0, 1);
+  }
+
+  for(const a of agents){
+    const p = tickProgress;
+    a.mesh.position.set(
+      a.prevX + (a.nextX - a.prevX) * p,
+      a.prevY + (a.nextY - a.prevY) * p + 0.22 + Math.sin(t * 5 + a.bob) * 0.012,
+      a.prevZ + (a.nextZ - a.prevZ) * p
+    );
+  }
+  for(const a of armies){
+    const p = tickProgress;
+    a.mesh.position.set(
+      a.prevX + (a.nextX - a.prevX) * p,
+      a.prevY + (a.nextY - a.prevY) * p,
+      a.prevZ + (a.nextZ - a.prevZ) * p
+    );
+  }
+
+  for(const n of nations){
+    if(n.eliminated || !n.capitalMesh) continue;
+    const flag = n.capitalMesh.userData.flag;
+    if(flag) flag.rotation.y = Math.sin(t * 2.2 + n.id) * 0.32;
+    if(n.wars.size) n.capitalMesh.position.y = tiles[n.capital.cz][n.capital.cx].y + Math.abs(Math.sin(t * 4)) * 0.05;
+  }
+
+  for(let i = spinners.length - 1; i >= 0; i--){
+    const s = spinners[i];
+    if(!s.parent){ spinners.splice(i, 1); continue; }
+    s.rotation.z += dt * 0.0011;
+  }
+
+  for(let i = groundRings.length - 1; i >= 0; i--){
+    const r = groundRings[i];
+    const k = (now - r.born) / r.life;
+    if(k >= 1){ disposeObj(r.mesh); groundRings.splice(i, 1); continue; }
+    r.mesh.material.opacity = 0.95 * (1 - k) * (1 - k);
+    r.mesh.scale.setScalar(0.5 + k * r.max);
+  }
+
+  for(let i = floatIcons.length - 1; i >= 0; i--){
+    const f = floatIcons[i];
+    const k = (now - f.born) / f.life;
+    if(k >= 1){ disposeFloat(f); floatIcons.splice(i, 1); continue; }
+    if(f.flat){
+      f.sprite.material.opacity = 0.4 * (1 - k);
+      f.sprite.scale.setScalar(1 + k * 1.6);
+    } else {
+      const pop = k < 0.16 ? (k / 0.16) : 1;
+      const overshoot = k < 0.16 ? 1 + (1 - k / 0.16) * 0.45 : 1;
+      f.sprite.material.opacity = k > 0.72 ? (1 - k) / 0.28 : pop;
+      f.sprite.scale.setScalar(f.size * pop * overshoot);
+      f.sprite.position.y = f.baseY + 0.35 + k * 1.5;
+    }
+  }
+
+  if(shake > 0.002){ shake *= 0.9; updateCamera(); }
+  else if(shake) { shake = 0; updateCamera(); }
+  if(options.autoOrbit && !dragging){ cam.azimuth += dt * 0.00006; updateCamera(); }
+
+  updateAtmosphere(t);
+  animateWater(t);
+  if(openPanel === 'atlas') drawMinimap();
+
+  renderer.render(scene, camera);
+}
+
+/* ============================ BOOT ============================ */
+function boot(){
+  initThree();
+  setupControls();
+  seasonColor = new THREE.Color(SEASONS[0].tint);
+  generateWorldData();
+  buildTerrainMesh();
+  buildDecorations();
+  seedAgents();
+  refreshHUD();
+  setTimeout(() => {
+    const h = document.getElementById('hint');
+    if(h) h.style.opacity = '0';
+  }, 9000);
+  requestAnimationFrame(animate);
+}
+
+if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
+else boot();
+
+})();
+</script>
+
+</body>
+</html>
